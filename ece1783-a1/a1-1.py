@@ -156,7 +156,7 @@ if __name__ == "__main__":
     #filename = "data/20171214180916RGB.yuv"
     filename = "test.yuv"
     size = (240, 352)
-    div_num = 4
+    div_num = 8
     search_range = 2
     ref_frame = [[128 for i in range(352)] for j in range(240)]
     cap = VideoCaptureYUV(filename, size)
