@@ -1,6 +1,7 @@
 from PixelPerfect.Yuv import YuvVideo, YuvFrame, YuvBlock
 from PixelPerfect.Common import EncoderConfig
 from PixelPerfect.Decoder import Decoder
+from PixelPerfect.ResidualProcessor import ResidualProcessor
 import numpy as np
 
 class Encoder():
@@ -8,7 +9,8 @@ class Encoder():
         self.video = video
         self.encoder_config = encoder_config
         self.decoder = Decoder(video.meta, encoder_config)
-    
+        self.residual_processor = ResidualProcessor()
+        
     def is_better_match_block(self, di, dj, block : YuvBlock, min_mae, best_i, best_j) -> bool:
         i = block.row_position + di
         j = block.col_position + dj
@@ -17,17 +19,20 @@ class Encoder():
             0 <= j <= self.decoder_frame.shape[1] - block_size):
             reference_block_data = self.decoder_frame.data[i:i + block_size, j:j + block_size]
             mae = block.get_mae(reference_block_data)
+            if mae > min_mae:
+                return False, None
             if mae < min_mae:
                 return True, mae
-            elif mae == min_mae:
-                if abs(di) + abs(dj) < abs(best_i - block.row_position) + abs(best_j - block.col_position):
-                    return True, mae
-                elif abs(di) + abs(dj) == abs(best_i - block.row_position) + abs(best_j - block.col_position):
-                    if di < best_i - block.row_position:
-                        return True, mae
-                    elif di == best_i - block.row_position:
-                        if dj < best_j - block.col_position:
-                            return True, mae
+            if abs(di) + abs(dj) > abs(best_i - block.row_position) + abs(best_j - block.col_position):
+                return False, None
+            if abs(di) + abs(dj) < abs(best_i - block.row_position) + abs(best_j - block.col_position):
+                return True, mae
+            if di > best_i - block.row_position:
+                return False, None
+            if di < best_i - block.row_position:
+                return True, mae
+            if dj < best_j - block.col_position:
+                return True, mae
         return False, None
     
     def find_best_match_block(self, block : YuvBlock) -> YuvBlock:
@@ -48,7 +53,7 @@ class Encoder():
             best_i,
             best_j
         )
-        
+    
     def process(self):
         self.decoder_frame = YuvFrame(np.full((self.video.meta.height, self.video.meta.width), 128))
         self.decoder = Decoder(self.video.meta, self.encoder_config)
@@ -60,7 +65,7 @@ class Encoder():
                 compressed_data.append((
                     best_match_block.row_position, 
                     best_match_block.col_position, 
-                    residual))
+                    self.residual_processor.encode(residual)))
             
             yield compressed_data
             self.decoder_frame = self.decoder.process(compressed_data)
