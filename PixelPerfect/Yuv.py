@@ -5,7 +5,7 @@ class YuvMeta:
     def __init__(self, height, width) -> None:
         self.height = height
         self.width = width
-
+        
 class YuvBlock:
     def __init__(self, data, block_size, row, col) -> None:
         self.data = data
@@ -20,9 +20,8 @@ class YuvBlock:
         return self.data - reference_data
 
     def add_residual(self, residual : np.ndarray) -> np.ndarray:
-        return self.data + residual
-        
-        
+        return np.clip(self.data + residual, 0, 255)
+
 class YuvFrame:
     def __init__(self, data) -> None:
         self.data = data
