@@ -1,5 +1,5 @@
 import numpy as np
-from utils import mean_abs_error
+import cv2
 
 class YuvMeta:
     def __init__(self, height, width) -> None:
@@ -19,6 +19,8 @@ class YuvBlock:
     def get_residual(self, reference_data : np.ndarray) -> np.ndarray:
         return self.data - reference_data
 
+    def add_residual(self, residual : np.ndarray) -> np.ndarray:
+        return self.data + residual
         
         
 class YuvFrame:
@@ -40,6 +42,11 @@ class YuvFrame:
                     start_col
                 )
 
+    def display(self, duration = 1):
+        cv2.imshow('y frame', self.data)
+        cv2.waitKey(duration)
+
+        
 class YuvVideo:
     def __init__(self, file_path : str, meta : YuvMeta) -> None:
         self.file_path = file_path
