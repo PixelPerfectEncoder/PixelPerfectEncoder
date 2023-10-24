@@ -33,7 +33,7 @@ class Decoder:
             print(decoded)
         return decoded
 
-    def Entrophy_decoding(self, data):
+    def Entrophy_decoding(self, data,residual):
         RLE_coded = []
         for bit in data:
             RLE_coded.append(bit.se)
@@ -47,9 +47,10 @@ class Decoder:
                  i+=1
         for diagonal_length in range(self.config.block_size-1,0, -1):
             for j in range(diagonal_length):
-                 quantized_data[self.config.block_size - diagonal_length + j][-1*j] = RLE_decoded[i];
+                 quantized_data[self.config.block_size - diagonal_length + j][-1*j-1] = RLE_decoded[i];
                  i+=1
         #retransform the data:
+        quantized_data = np.array(quantized_data)
         dct_data = self.residual_processor.de_quantization(quantized_data)
         residual = self.residual_processor.de_dct(dct_data)
         return residual
@@ -58,14 +59,15 @@ class Decoder:
         block_size = self.config.block_size
         row_block_num = self.yuv_info.width // block_size
         for seq, block_data in enumerate(data):
-            ref_row, ref_col, residual, Entrophy_coded_data = block_data
-            residual = self.Entrophy_decoding(Entrophy_coded_data)
+            ref_row, ref_col, residual, Entrophy_coded_data, sequence = block_data
+            residual2 = self.Entrophy_decoding(Entrophy_coded_data, residual)
+            # print(np.sum(np.abs(residual - residual2)))
             row = seq // row_block_num * block_size
             col = seq % row_block_num * block_size
             if self.config.do_approximated_residual:
                 residual = self.residual_processor.decode(residual)
             frame[row:row + block_size, col:col + block_size] \
-                = self.previous_frame.data[ref_row:ref_row + block_size, ref_col:ref_col + block_size] + residual
+                = self.previous_frame.data[ref_row:ref_row + block_size, ref_col:ref_col + block_size] + residual2
         self.previous_frame = YuvFrame(frame)
         return self.previous_frame
 

@@ -129,11 +129,12 @@ class Encoder():
             sequence += fdiag[i][:]
         # sequence = [-31, 9, -4, 8, 1, -3, 4, 4, 2, 4, 0, 4, 0, 0, -4, 0]
         #RLE coding
+        original = sequence
         sequence = self.RLE_coding(sequence)
         #Exponential-Golomb Coding
         for i in sequence:
             bit_sequence = [BitArray(se=i) for i in sequence]
-        return bit_sequence
+        return bit_sequence, original
 
     def process(self):
         self.decoder_frame = YuvFrame(np.full((self.video.meta.height, self.video.meta.width), 128))
@@ -153,7 +154,7 @@ class Encoder():
                     residual = block.get_residual(best_match_block.data)
                     dct_residual = self.residual_processor.dct_transform(residual)
                     quantized_dct = self.residual_processor.quantization(dct_residual)
-                    Entrophy_coded_data =self.entrophy_coding(quantized_dct)
+                    Entrophy_coded_data, sequence =self.entrophy_coding(quantized_dct)
                     if self.config.do_approximated_residual:
                         residual = self.residual_processor.encode(residual)
                     compressed_data.append((
@@ -161,6 +162,7 @@ class Encoder():
                         best_match_block.col_position,
                         residual,
                         Entrophy_coded_data,
+                        sequence
                         ))
             else:
                 for block in frame.get_blocks(self.config.block_size):
