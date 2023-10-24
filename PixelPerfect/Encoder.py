@@ -151,17 +151,19 @@ class Encoder():
                 for block in frame.get_blocks(self.config.block_size):
                     best_match_block = self.find_best_match_block(block)
                     residual = block.get_residual(best_match_block.data)
-                    dct_residual = self.residual_processor.dct_transform(residual)
-                    quantized_dct = self.residual_processor.quantization(dct_residual)
-                    Entrophy_coded_data =self.entrophy_coding(quantized_dct)
                     if self.config.do_approximated_residual:
-                        residual = self.residual_processor.encode(residual)
+                        residual = self.residual_processor.approx(residual)
+                    if self.config.do_dct:
+                        residual = self.residual_processor.dct_transform(residual)
+                    if self.config.do_quantization:
+                        residual = self.residual_processor.quantization(residual)
+                    if self.config.do_entropy:
+                        residual =self.entrophy_coding(residual)
                     compressed_data.append((
                         best_match_block.row_position,
                         best_match_block.col_position,
                         residual,
-                        Entrophy_coded_data,
-                        ))
+                    ))
             else:
                 for block in frame.get_blocks(self.config.block_size):
                     me, residual, reconstructed_block = self.intra_pred(block)
