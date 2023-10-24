@@ -22,7 +22,7 @@ def play_foreman_test_better_quality():
     filename = 'foreman_cif-1.yuv'
     video_info = YuvMeta(height=288, width=352)
     video = YuvVideo(get_media_file_path(filename), video_info)
-    config = CodecConfig(16, 2, False)
+    config = CodecConfig(4, 1, False)
     encoder = Encoder(video, config)
     decoder = Decoder(video_info, config)
     for compressed_data in encoder.process():
@@ -32,3 +32,4 @@ def play_foreman_test_better_quality():
 
 def run_tests():
     play_foreman_test_better_quality()
+
