@@ -33,10 +33,10 @@ class Decoder:
             print(decoded)
         return decoded
 
-    def Entrophy_decoding(self, data,residual):
-        RLE_coded = []
-        for bit in data:
-            RLE_coded.append(bit.se)
+    def Entrophy_decoding(self, data):
+        data.pos = 0
+        length = data.read('se')
+        RLE_coded = data.readlist(str(length)+'*se')
         RLE_decoded = self.RLE_decoding(RLE_coded, data)
         #put it back to 2d array
         quantized_data = [[0 for i in range(self.config.block_size)] for j in range(self.config.block_size)]
@@ -59,8 +59,8 @@ class Decoder:
         block_size = self.config.block_size
         row_block_num = self.yuv_info.width // block_size
         for seq, block_data in enumerate(data):
-            ref_row, ref_col, residual, Entrophy_coded_data, sequence = block_data
-            residual2 = self.Entrophy_decoding(Entrophy_coded_data, residual)
+            ref_row, ref_col, residual, Entrophy_coded_data = block_data
+            residual2 = self.Entrophy_decoding(Entrophy_coded_data)
             # print(np.sum(np.abs(residual - residual2)))
             row = seq // row_block_num * block_size
             col = seq % row_block_num * block_size
