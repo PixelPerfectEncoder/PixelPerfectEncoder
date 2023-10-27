@@ -45,7 +45,7 @@ class Decoder(Coder):
         quantized_data = np.array(quantized_data)
         return quantized_data
 
-    def process(self, data):            
+    def process(self, data):
         frame = np.zeros(
             [self.video_info.height, self.video_info.width], dtype=np.uint8
         )
@@ -67,13 +67,15 @@ class Decoder(Coder):
                 ref_frame_data = self.previous_frame.data
             else:
                 ref_frame_data = frame
-            frame[row : row + block_size, col : col + block_size] = (
+            frame[row : row + block_size, col : col + block_size] = np.clip(
                 ref_frame_data[
                     ref_row : ref_row + block_size, ref_col : ref_col + block_size
                 ]
-                + residual
+                + residual,
+                0,
+                255,
             )
-                
+
         res = YuvFrame(frame, self.config.block_size)
         self.frame_processed(res)
         return res
