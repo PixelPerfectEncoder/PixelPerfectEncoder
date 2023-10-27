@@ -37,7 +37,7 @@ def e3_test():
         do_approximated_residual=True,
         do_dct=False,
         do_quantization=False,
-        do_entropy=False,
+        do_entropy=True,
     )
     encoder = Encoder(video_info, config, get_media_file_path(filename))
     decoder = Decoder(video_info, config)
