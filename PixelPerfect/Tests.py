@@ -3,8 +3,9 @@ from PixelPerfect.Encoder import Encoder, CodecConfig
 from PixelPerfect.Yuv import YuvVideo, YuvMeta
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data
 
+
 def play_foreman_test():
-    filename = 'foreman_cif-1.yuv'
+    filename = "foreman_cif-1.yuv"
     video_info = YuvMeta(height=288, width=352)
     video = YuvVideo(get_media_file_path(filename), video_info)
     config = CodecConfig(block_size=16, block_search_offset=2)
@@ -18,13 +19,14 @@ def play_foreman_test():
         decoded_frame.display()
     clean_data(file_ids)
 
+
 def play_foreman_test_better_quality():
-    filename = 'foreman_cif-1.yuv'
+    filename = "foreman_cif-1.yuv"
     video_info = YuvMeta(height=288, width=352)
     video = YuvVideo(get_media_file_path(filename), video_info)
     config = CodecConfig(
-        block_size=16, 
-        block_search_offset=2, 
+        block_size=16,
+        block_search_offset=2,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
@@ -36,6 +38,6 @@ def play_foreman_test_better_quality():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
 
+
 def run_tests():
     play_foreman_test_better_quality()
-
