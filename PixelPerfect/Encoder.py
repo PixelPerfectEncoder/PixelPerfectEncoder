@@ -129,10 +129,13 @@ class Encoder():
             sequence += fdiag[i][:]
         # sequence = [-31, 9, -4, 8, 1, -3, 4, 4, 2, 4, 0, 4, 0, 0, -4, 0]
         #RLE coding
+        original = sequence
         sequence = self.RLE_coding(sequence)
+        sequence = [len(sequence)] + sequence
         #Exponential-Golomb Coding
-        for i in sequence:
-            bit_sequence = [BitArray(se=i) for i in sequence]
+        # for i in sequence:
+        #     bit_sequence = [BitArray(se=i) for i in sequence]
+        bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
 
     def process(self):

@@ -32,6 +32,7 @@ def play_foreman_test_better_quality():
     )
     encoder = Encoder(video, config)
     decoder = Decoder(video_info, config)
+    encoded = []
     for compressed_data in encoder.process():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()

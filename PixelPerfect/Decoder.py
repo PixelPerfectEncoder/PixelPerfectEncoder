@@ -35,9 +35,9 @@ class Decoder:
         return decoded
 
     def Entrophy_decoding(self, data):
-        RLE_coded = []
-        for bit in data:
-            RLE_coded.append(bit.se)
+        data.pos = 0
+        length = data.read('se')
+        RLE_coded = data.readlist(str(length)+'*se')
         RLE_decoded = self.RLE_decoding(RLE_coded, data)
         #put it back to 2d array
         quantized_data = [[0 for i in range(self.config.block_size)] for j in range(self.config.block_size)]
@@ -48,9 +48,10 @@ class Decoder:
                  i+=1
         for diagonal_length in range(self.config.block_size-1,0, -1):
             for j in range(diagonal_length):
-                 quantized_data[self.config.block_size - diagonal_length + j][-1*j] = RLE_decoded[i];
+                 quantized_data[self.config.block_size - diagonal_length + j][-1*j-1] = RLE_decoded[i];
                  i+=1
         #retransform the data:
+        quantized_data = np.array(quantized_data)
         return quantized_data
     
     def process(self, data):
@@ -70,7 +71,7 @@ class Decoder:
             row = seq // row_block_num * block_size
             col = seq % row_block_num * block_size
             frame[row:row + block_size, col:col + block_size] \
-                = self.previous_frame.data[ref_row:ref_row + block_size, ref_col:ref_col + block_size] + residual
+                = self.previous_frame.data[ref_row:ref_row + block_size, ref_col:ref_col + block_size] + residual2
         self.previous_frame = YuvFrame(frame)
         return self.previous_frame
 
