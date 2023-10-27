@@ -146,7 +146,6 @@ class Encoder(Coder):
     def entrophy_coding(self, data):
         sequence = self.get_diagonal_sequence(data)
         sequence = self.RLE_coding(sequence)
-        sequence = [len(sequence)] + sequence
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
 
@@ -172,3 +171,4 @@ class Encoder(Coder):
                 compressed_data.append((row, col, residual))
             yield compressed_data
             self.frame_processed(self.decoder.process(compressed_data))
+            # self.frame_processed(frame)
