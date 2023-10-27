@@ -1,6 +1,26 @@
 import uuid
 import pickle
 import os
+import numpy as np
+from PixelPerfect.Yuv import YuvInfo, YuvFrame
+
+
+def read_frames(path, info: YuvInfo):
+    height = info.height
+    width = info.width
+    yuv_frame_size = width * height + (width // 2) * (height // 2) * 2
+    y_frame_size = width * height
+
+    with open(path, "rb") as file:
+        while True:
+            yuv_frame_data = file.read(yuv_frame_size)
+            if len(yuv_frame_data) < yuv_frame_size:
+                break
+            yield YuvFrame(
+                np.frombuffer(yuv_frame_data[:y_frame_size], dtype=np.uint8).reshape(
+                    (info.height, info.width)
+                )
+            )
 
 
 def get_media_file_path(filename):

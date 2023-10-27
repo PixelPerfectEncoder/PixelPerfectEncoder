@@ -2,7 +2,7 @@ import numpy as np
 import cv2
 
 
-class YuvMeta:
+class YuvInfo:
     def __init__(self, height, width) -> None:
         self.height = height
         self.width = width
@@ -66,11 +66,11 @@ class YuvFrame:
 
 
 class YuvVideo:
-    def __init__(self, file_path: str, meta: YuvMeta) -> None:
+    def __init__(self, file_path: str, info: YuvInfo) -> None:
         self.file_path = file_path
-        self.meta = meta
-        height = self.meta.height
-        width = self.meta.width
+        self.info = info
+        height = self.info.height
+        width = self.info.width
         self.yuv_frame_size = width * height + (width // 2) * (height // 2) * 2
         self.y_frame_size = width * height
 
@@ -83,5 +83,5 @@ class YuvVideo:
                 yield YuvFrame(
                     np.frombuffer(
                         yuv_frame_data[: self.y_frame_size], dtype=np.uint8
-                    ).reshape((self.meta.height, self.meta.width))
+                    ).reshape((self.info.height, self.info.width))
                 )

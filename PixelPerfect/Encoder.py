@@ -1,18 +1,16 @@
-from PixelPerfect.Yuv import YuvVideo, YuvFrame, YuvBlock
-from PixelPerfect.Common import CodecConfig
-from PixelPerfect.Decoder import Decoder
-from PixelPerfect.ResidualProcessor import ResidualProcessor
-from bitstring import BitArray
-from bitstring import BitStream
 import numpy as np
+from bitstring import BitArray, BitStream
+from PixelPerfect.Yuv import YuvInfo, YuvBlock
+from PixelPerfect.Coder import Coder, CodecConfig
+from PixelPerfect.Decoder import Decoder
+from PixelPerfect.FileIO import read_frames
 
 
-class Encoder:
-    def __init__(self, video: YuvVideo, config: CodecConfig):
-        self.video = video
-        self.config = config
-        self.decoder = Decoder(video.meta, config)
-        self.residual_processor = ResidualProcessor(config.block_size)
+class Encoder(Coder):
+    def __init__(self, video_info: YuvInfo, config: CodecConfig, source_path: str):
+        super().__init__(video_info, config)
+        self.decoder = Decoder(video_info, config)
+        self.source_path = source_path
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
@@ -21,10 +19,10 @@ class Encoder:
         j = block.col_position + dj
         block_size = self.config.block_size
         if (
-            0 <= i <= self.decoder_frame.shape[0] - block_size
-            and 0 <= j <= self.decoder_frame.shape[1] - block_size
+            0 <= i <= self.video_info.height - block_size
+            and 0 <= j <= self.video_info.width - block_size
         ):
-            reference_block_data = self.decoder_frame.data[
+            reference_block_data = self.previous_frame.data[
                 i : i + block_size, j : j + block_size
             ]
             mae = block.get_mae(reference_block_data)
@@ -63,7 +61,7 @@ class Encoder:
 
         block_size = self.config.block_size
         return YuvBlock(
-            self.decoder_frame.data[
+            self.previous_frame.data[
                 best_i : best_i + block_size, best_j : best_j + block_size
             ],
             block_size,
@@ -153,20 +151,9 @@ class Encoder:
         return bit_sequence
 
     def process(self):
-        self.decoder_frame = YuvFrame(
-            np.full((self.video.meta.height, self.video.meta.width), 128)
-        )
-        self.decoder = Decoder(self.video.meta, self.config)
-        count = 0
-        p_frame = True
-        for frame in self.video.get_y_frames():
-            self.cur_frame = frame
-            # if count%4 == 0:
-            #     p_frame = False
-            # else:
-            #     p_frame = True
+        for frame in read_frames(self.source_path, self.video_info):
             compressed_data = []
-            if p_frame:
+            if self.is_p_frame():
                 for block in frame.get_blocks(self.config.block_size):
                     best_match_block = self.find_best_match_block(block)
                     residual = block.get_residual(best_match_block.data)
@@ -186,14 +173,7 @@ class Encoder:
                         )
                     )
             else:
-                for block in frame.get_blocks(self.config.block_size):
-                    me, residual, reconstructed_block = self.intra_pred(block)
-                    self.cur_frame[
-                        block.row_position : block.row_position + block.block_size,
-                        block.col_position : block.col_position + block.block_size,
-                    ] = reconstructed_block
-                    # reconstruct the frame
+                pass
 
-            count += 1
             yield compressed_data
-            self.decoder_frame = self.decoder.process(compressed_data)
+            self.frame_processed(self.decoder.process(compressed_data))
