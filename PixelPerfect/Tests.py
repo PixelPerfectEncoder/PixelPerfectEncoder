@@ -22,13 +22,20 @@ def play_foreman_test_better_quality():
     filename = 'foreman_cif-1.yuv'
     video_info = YuvMeta(height=288, width=352)
     video = YuvVideo(get_media_file_path(filename), video_info)
-    config = CodecConfig(16, 2, False)
+    config = CodecConfig(
+        block_size=16, 
+        block_search_offset=2, 
+        do_approximated_residual=False,
+        do_dct=True,
+        do_quantization=True,
+        do_entropy=True,
+    )
     encoder = Encoder(video, config)
     decoder = Decoder(video_info, config)
     for compressed_data in encoder.process():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
-    
 
 def run_tests():
     play_foreman_test_better_quality()
+
