@@ -21,10 +21,6 @@ class YuvBlock:
     def get_residual(self, reference_data: np.ndarray) -> np.ndarray:
         return self.data - reference_data
 
-    def add_residual(self, residual: np.ndarray) -> np.ndarray:
-        return np.clip(self.data + residual, 0, 255)
-
-
 class YuvFrame:
     def __init__(self, data, block_size) -> None:
         self.data = data

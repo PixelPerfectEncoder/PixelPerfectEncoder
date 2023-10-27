@@ -11,10 +11,11 @@ def play_foreman_test():
         block_size=16,
         block_search_offset=2,
         i_Period=-1,
-        do_approximated_residual=True,
-        do_dct=False,
-        do_quantization=False,
-        do_entropy=False,
+        approximated_residual_n = 2,
+        do_approximated_residual=False,
+        do_dct=True,
+        do_quantization=True,
+        do_entropy=True,
     )
     encoder = Encoder(video_info, config, get_media_file_path(filename))
     decoder = Decoder(video_info, config)
@@ -29,7 +30,8 @@ def e3_test():
         block_size=16,
         block_search_offset=2,
         i_Period=-1,
-        do_approximated_residual=False,
+        approximated_residual_n = 3,
+        do_approximated_residual=True,
         do_dct=False,
         do_quantization=False,
         do_entropy=True,
@@ -47,6 +49,7 @@ def e4_test():
         block_size=16,
         block_search_offset=2,
         i_Period=3,
+        approximated_residual_n = 2,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
@@ -60,3 +63,5 @@ def e4_test():
 
 def run_tests():
     e3_test()
+    # e4_test()
+    # play_foreman_test()
