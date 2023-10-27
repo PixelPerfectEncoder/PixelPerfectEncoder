@@ -11,7 +11,8 @@ def play_foreman_test():
         block_size=16,
         block_search_offset=2,
         i_Period=-1,
-        approximated_residual_n = 2,
+        quant_level=2,
+        approximated_residual_n=2,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
@@ -22,7 +23,8 @@ def play_foreman_test():
     for compressed_data in encoder.process():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
-        
+
+
 def e3_test():
     filename = "foreman_cif-1.yuv"
     video_info = YuvInfo(height=288, width=352)
@@ -30,7 +32,8 @@ def e3_test():
         block_size=16,
         block_search_offset=2,
         i_Period=-1,
-        approximated_residual_n = 3,
+        quant_level=2,
+        approximated_residual_n=3,
         do_approximated_residual=True,
         do_dct=False,
         do_quantization=False,
@@ -40,7 +43,8 @@ def e3_test():
     decoder = Decoder(video_info, config)
     for compressed_data in encoder.process():
         decoded_frame = decoder.process(compressed_data)
-        decoded_frame.display() 
+        decoded_frame.display()
+
 
 def e4_test():
     filename = "foreman_cif-1.yuv"
@@ -49,7 +53,8 @@ def e4_test():
         block_size=16,
         block_search_offset=2,
         i_Period=3,
-        approximated_residual_n = 2,
+        quant_level=2,
+        approximated_residual_n=2,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
@@ -59,7 +64,8 @@ def e4_test():
     decoder = Decoder(video_info, config)
     for compressed_data in encoder.process():
         decoded_frame = decoder.process(compressed_data)
-        decoded_frame.display() 
+        decoded_frame.display()
+
 
 def run_tests():
     e3_test()
