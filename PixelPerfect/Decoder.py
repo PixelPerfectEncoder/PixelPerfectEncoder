@@ -23,7 +23,9 @@ class Decoder(Coder):
     def Entrophy_decoding(self, data):
         data.pos = 0
         length = data.read("se")
-        RLE_coded = data.readlist(str(length) + "*se")
+        RLE_coded = []
+        while data.pos != len(data):
+            RLE_coded.append(data.read('se'))
         RLE_decoded = self.RLE_decoding(RLE_coded)
         # put it back to 2d array
         quantized_data = [

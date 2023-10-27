@@ -59,4 +59,4 @@ def e4_test():
         decoded_frame.display() 
 
 def run_tests():
-    play_foreman_test()
+    e3_test()
