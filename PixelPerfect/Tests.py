@@ -29,10 +29,10 @@ def e3_test():
         block_size=16,
         block_search_offset=2,
         i_Period=-1,
-        do_approximated_residual=True,
+        do_approximated_residual=False,
         do_dct=False,
         do_quantization=False,
-        do_entropy=False,
+        do_entropy=True,
     )
     encoder = Encoder(video_info, config, get_media_file_path(filename))
     decoder = Decoder(video_info, config)

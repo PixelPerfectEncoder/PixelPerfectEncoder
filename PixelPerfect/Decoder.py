@@ -22,7 +22,6 @@ class Decoder(Coder):
 
     def Entrophy_decoding(self, data):
         data.pos = 0
-        length = data.read("se")
         RLE_coded = []
         while data.pos != len(data):
             RLE_coded.append(data.read('se'))
