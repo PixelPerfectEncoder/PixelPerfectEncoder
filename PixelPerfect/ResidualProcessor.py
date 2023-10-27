@@ -8,7 +8,7 @@ class ResidualProcessor:
         self.two_to_n = np.array([2 ** i for i in range(0, self.max_exp + 1)], dtype=np.int16)
         biggest_n = 2 ** self.max_exp
         self.n_to_two = np.empty(biggest_n + 1, dtype=np.uint16)
-        self.quant_matrix = np.zeros((block_size,block_size))
+        self.quant_matrix = np.zeros((self.block_size, self.block_size))
         for v in range(0, biggest_n + 1):
             pos = bisect.bisect_left(self.two_to_n, v)
             if pos != 0 and v - self.two_to_n[pos - 1] <= self.two_to_n[pos] - v:

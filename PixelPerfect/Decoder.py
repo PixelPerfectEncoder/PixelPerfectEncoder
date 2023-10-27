@@ -71,7 +71,7 @@ class Decoder:
             row = seq // row_block_num * block_size
             col = seq % row_block_num * block_size
             frame[row:row + block_size, col:col + block_size] \
-                = self.previous_frame.data[ref_row:ref_row + block_size, ref_col:ref_col + block_size] + residual2
+                = self.previous_frame.data[ref_row:ref_row + block_size, ref_col:ref_col + block_size] + residual
         self.previous_frame = YuvFrame(frame)
         return self.previous_frame
 
