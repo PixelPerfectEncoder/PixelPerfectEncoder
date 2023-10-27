@@ -59,23 +59,27 @@ class Decoder(Coder):
                 residual = self.residual_processor.de_quantization(residual)
             if self.config.do_dct:
                 residual = self.residual_processor.de_dct(residual)
-            if self.config.do_approximated_residual:
-                residual = self.residual_processor.de_approx(residual)
             row = seq // row_block_num * block_size
             col = seq % row_block_num * block_size
             if self.is_p_frame():
                 ref_frame_data = self.previous_frame.data
             else:
                 ref_frame_data = frame
-            frame[row : row + block_size, col : col + block_size] = np.clip(
+            frame[row : row + block_size, col : col + block_size] = (
                 ref_frame_data[
                     ref_row : ref_row + block_size, ref_col : ref_col + block_size
                 ]
-                + residual,
-                0,
-                255,
+                + residual
             )
-
+            # frame[row : row + block_size, col : col + block_size] = np.clip(
+            #     ref_frame_data[
+            #         ref_row : ref_row + block_size, ref_col : ref_col + block_size
+            #     ]
+            #     + residual,
+            #     0,
+            #     255,
+            # )
+        frame = np.clip(frame, 0, 255)
         res = YuvFrame(frame, self.config.block_size)
         self.frame_processed(res)
         return res

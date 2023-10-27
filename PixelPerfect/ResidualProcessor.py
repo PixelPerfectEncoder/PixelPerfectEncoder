@@ -6,19 +6,8 @@ from scipy.fftpack import idct, dct
 
 class ResidualProcessor:
     def init_approx_matrix(self):
-        self.two_to_n = [2**i for i in range(1, 4)]
-        print(self.two_to_n)
-        self.n_to_two = [2 for _ in range(500)]
-        for v1 in range(600):
-            for i, v2 in enumerate(self.two_to_n):
-                if v1 <= v2:
-                    if i == 0 or v1 - self.two_to_n[i - 1] > v2 - v1:
-                        self.n_to_two[v1] = i
-                    else:
-                        self.n_to_two[v1] = i - 1
-                    break
-        self.two_to_n = np.array(self.two_to_n)
-        self.n_to_two = np.array(self.n_to_two)
+        divider = 2 ** self.approximated_residual_n
+        self.residual2round = np.array([int(i // divider * divider) for i in range(1000)])
 
     def init_quant_matrix(self):
         self.quant_matrix = np.zeros((self.block_size, self.block_size))
@@ -34,20 +23,16 @@ class ResidualProcessor:
             else:
                 self.quant_matrix[iy][ix] = math.pow(2, self.quant_level + 2)
 
-    def __init__(self, block_size, max_val=255, quant_level=2):
+    def __init__(self, block_size, max_val=255, quant_level=2, approximated_residual_n=2):
         self.block_size = block_size
         self.max_val = max_val
         self.quant_level = quant_level
+        self.approximated_residual_n = approximated_residual_n
         self.init_approx_matrix()
         self.init_quant_matrix()
 
-    def de_approx(self, residual: np.ndarray) -> np.ndarray:
-        decoded = self.two_to_n[np.abs(residual)] * np.sign(residual)
-        return decoded
-
     def approx(self, residual: np.ndarray) -> np.ndarray:
-        encoded = self.n_to_two[np.abs(residual)] * np.sign(residual)
-        return encoded
+        return self.residual2round[np.abs(residual)] * np.sign(residual)
 
     def dct_transform(self, residuals):
         transform = dct(dct(residuals.T, norm="ortho").T, norm="ortho")
