@@ -1,10 +1,9 @@
 import numpy as np
 from bitstring import BitArray, BitStream
-from PixelPerfect.Yuv import YuvInfo, YuvBlock
+from PixelPerfect.Yuv import YuvInfo, YuvBlock, YuvFrame
 from PixelPerfect.Coder import Coder, CodecConfig
 from PixelPerfect.Decoder import Decoder
-from PixelPerfect.FileIO import read_frames
-
+from PixelPerfect.FileIO import read_video
 
 class Encoder(Coder):
     def __init__(self, video_info: YuvInfo, config: CodecConfig, source_path: str):
@@ -12,12 +11,26 @@ class Encoder(Coder):
         self.decoder = Decoder(video_info, config)
         self.source_path = source_path
 
+    def read_frames(self):
+        height = self.video_info.height
+        width = self.video_info.width
+        yuv_frame_size = width * height + (width // 2) * (height // 2) * 2
+        y_frame_size = width * height
+        
+        for yuv_frame_data in read_video(self.source_path, yuv_frame_size):
+            yield YuvFrame(
+                np.frombuffer(yuv_frame_data[:y_frame_size], dtype=np.uint8).reshape(
+                    (height, width)
+                ),
+                self.config.block_size,
+            )
+
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
     ) -> bool:
         i = block.row_position + di
         j = block.col_position + dj
-        block_size = self.config.block_size
+        block_size = block.block_size
         if (
             0 <= i <= self.video_info.height - block_size
             and 0 <= j <= self.video_info.width - block_size
@@ -69,44 +82,31 @@ class Encoder(Coder):
             best_j,
         )
 
-    def intra_horizontal_pred(self, cur_block):
-        if cur_block.col_position == 0:
-            predicted_block = np.full((128, 128), cur_block.block_size)
-        else:
-            ref_col = self.cur_frame[
-                cur_block.row_position : cur_block.row_position + cur_block.block_size,
-                cur_block.col_position - 1 : cur_block.col_position,
-            ]
-            predicted_block = ref_col
-            while predicted_block.shape[1] < cur_block.block_size:
-                np.column_stack((predicted_block, ref_col))
-        residual = np.abs(predicted_block - cur_block.data)
-        MAE = np.sum(residual)
-        return (MAE, residual, predicted_block)
+    def get_inter_data(self, block: YuvBlock):
+        best_match_block = self.find_best_match_block(block)
+        return (
+            block.get_residual(best_match_block.data),
+            best_match_block.row_position,
+            best_match_block.col_position,
+        )
 
-    def intra_vertical_pred(self, cur_block):
-        if cur_block.row_position == 0:
-            predicted_block = np.full((128, 128), cur_block.block_size)
-        else:
-            ref_col = self.cur_frame[
-                cur_block.row_position - 1 : cur_block.row_position,
-                cur_block.col_position : cur_block.col_position + cur_block.block_size,
-            ]
-            predicted_block = np.tile(ref_col, (cur_block.block_size, 1))
-        residual = np.abs(predicted_block - cur_block.data)
-        MAE = np.sum(residual)
-        return (MAE, residual, predicted_block)
-
-    def intra_pred(self, cur_block):
-        MAE_h, residual_h, predicted_block_h = self.intra_horizontal_pred(cur_block)
-        MAE_v, residual_v, predicted_block_v = self.intra_vertical_pred(cur_block)
-        # return mode 0 if horizontal mode has leat MAE
-        if MAE_h < MAE_v:
-            reconstructed_block = residual_h + predicted_block_h
-            return (0, residual_h, reconstructed_block)
-        else:
-            reconstructed_block = residual_v + predicted_block_v
-            return (1, residual_v, reconstructed_block)
+    def get_intra_data(self, block: YuvBlock, current_frame: YuvFrame):
+        min_mae = float("inf")
+        predicted_data = np.zeros([block.block_size, block.block_size], dtype=np.uint8)
+        row, col = block.row_position, block.col_position
+        try_positions = []
+        if block.col_position != 0:
+            try_positions.append((block.row_position, block.col_position - block.block_size))
+        if block.row_position != 0:
+            try_positions.append((block.row_position - block.block_size, block.col_position))
+        for ref_row, ref_col in try_positions:
+            data = current_frame.get_block(ref_row, ref_col).data
+            mae = block.get_mae(data)
+            if mae < min_mae:
+                min_mae = mae
+                predicted_data = data
+                row, col = ref_row, ref_col
+        return block.get_residual(predicted_data), row, col
 
     def RLE_coding(self, data):
         sequence = []
@@ -151,29 +151,24 @@ class Encoder(Coder):
         return bit_sequence
 
     def process(self):
-        for frame in read_frames(self.source_path, self.video_info):
+        for frame in self.read_frames():
             compressed_data = []
-            if self.is_p_frame():
-                for block in frame.get_blocks(self.config.block_size):
-                    best_match_block = self.find_best_match_block(block)
-                    residual = block.get_residual(best_match_block.data)
-                    if self.config.do_approximated_residual:
-                        residual = self.residual_processor.approx(residual)
-                    if self.config.do_dct:
-                        residual = self.residual_processor.dct_transform(residual)
-                    if self.config.do_quantization:
-                        residual = self.residual_processor.quantization(residual)
-                    if self.config.do_entropy:
-                        residual = self.entrophy_coding(residual)
-                    compressed_data.append(
-                        (
-                            best_match_block.row_position,
-                            best_match_block.col_position,
-                            residual,
-                        )
-                    )
-            else:
-                pass
-
+            for block in frame.get_blocks():
+                # get residual
+                if self.is_p_frame():
+                    residual, row, col = self.get_inter_data(block)
+                else:
+                    residual, row, col = self.get_intra_data(block, frame)
+                # compress residual
+                if self.config.do_approximated_residual:
+                    residual = self.residual_processor.approx(residual)
+                if self.config.do_dct:
+                    residual = self.residual_processor.dct_transform(residual)
+                if self.config.do_quantization:
+                    residual = self.residual_processor.quantization(residual)
+                if self.config.do_entropy:
+                    residual = self.entrophy_coding(residual)
+                # save compressed block
+                compressed_data.append((row, col, residual))
             yield compressed_data
             self.frame_processed(self.decoder.process(compressed_data))

@@ -29,7 +29,8 @@ class Coder:
         self.config = config
         self.video_info = video_info
         self.previous_frame = YuvFrame(
-            np.full((self.video_info.height, self.video_info.width), 128)
+            np.full((self.video_info.height, self.video_info.width), 128),
+            self.config.block_size,
         )
         self.residual_processor = ResidualProcessor(self.config.block_size)
 
@@ -38,15 +39,16 @@ class Coder:
             return True
         if self.config.i_Period == 0:
             return False
-        if self.frame_seq == 0:
+        if self.frame_seq % self.config.i_Period == 0:
             return False
         else:
             return True
 
     def frame_processed(self, frame):
-        if self.config.i_Period != -1 and self.config.i_Period != 0:
-            self.frame_seq = (self.frame_seq + 1) % self.config.i_Period
+        self.frame_seq += 1
         self.previous_frame = frame
 
     def is_i_frame(self):
         return not self.is_p_frame()
+
+    

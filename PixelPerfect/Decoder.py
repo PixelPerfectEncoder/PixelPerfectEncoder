@@ -45,33 +45,35 @@ class Decoder(Coder):
         quantized_data = np.array(quantized_data)
         return quantized_data
 
-    def process(self, data):
-        if self.is_p_frame():
-            frame = np.zeros(
-                [self.video_info.height, self.video_info.width], dtype=np.uint8
+    def process(self, data):            
+        frame = np.zeros(
+            [self.video_info.height, self.video_info.width], dtype=np.uint8
+        )
+        block_size = self.config.block_size
+        row_block_num = self.video_info.width // block_size
+        for seq, block_data in enumerate(data):
+            ref_row, ref_col, residual = block_data
+            if self.config.do_entropy:
+                residual = self.Entrophy_decoding(residual)
+            if self.config.do_quantization:
+                residual = self.residual_processor.de_quantization(residual)
+            if self.config.do_dct:
+                residual = self.residual_processor.de_dct(residual)
+            if self.config.do_approximated_residual:
+                residual = self.residual_processor.de_approx(residual)
+            row = seq // row_block_num * block_size
+            col = seq % row_block_num * block_size
+            if self.is_p_frame():
+                ref_frame_data = self.previous_frame.data
+            else:
+                ref_frame_data = frame
+            frame[row : row + block_size, col : col + block_size] = (
+                ref_frame_data[
+                    ref_row : ref_row + block_size, ref_col : ref_col + block_size
+                ]
+                + residual
             )
-            block_size = self.config.block_size
-            row_block_num = self.video_info.width // block_size
-            for seq, block_data in enumerate(data):
-                ref_row, ref_col, residual = block_data
-                if self.config.do_entropy:
-                    residual = self.Entrophy_decoding(residual)
-                if self.config.do_quantization:
-                    residual = self.residual_processor.de_quantization(residual)
-                if self.config.do_dct:
-                    residual = self.residual_processor.de_dct(residual)
-                if self.config.do_approximated_residual:
-                    residual = self.residual_processor.de_approx(residual)
-                row = seq // row_block_num * block_size
-                col = seq % row_block_num * block_size
-                frame[row : row + block_size, col : col + block_size] = (
-                    self.previous_frame.data[
-                        ref_row : ref_row + block_size, ref_col : ref_col + block_size
-                    ]
-                    + residual
-                )
-            res = YuvFrame(frame)
-        else:
-            pass
+                
+        res = YuvFrame(frame, self.config.block_size)
         self.frame_processed(res)
         return res
