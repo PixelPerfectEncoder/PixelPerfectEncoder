@@ -29,6 +29,26 @@ def e3_test():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
 
+def e4_test():
+    filename, video_info = videos['foreman']
+    config = CodecConfig(
+        block_size=16,
+        block_search_offset=2,
+        i_Period=4,
+        quant_level=2,
+        approximated_residual_n=3,
+        do_approximated_residual=False,
+        do_dct=True,
+        do_quantization=True,
+        do_entropy=True,
+    )
+    encoder = Encoder(video_info, config)
+    decoder = Decoder(video_info, config)
+    for frame in read_frames(get_media_file_path(filename), video_info, config):
+        compressed_data = encoder.process(frame)
+        decoded_frame = decoder.process(compressed_data)
+        decoded_frame.display()
+
 def run_tests():
     e3_test()
     # e4_test()

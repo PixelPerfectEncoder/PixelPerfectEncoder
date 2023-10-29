@@ -43,6 +43,7 @@ class YuvFrame:
             constant_values=128,
         )
         self.height, self.width = self.padded_frame.shape
+        
     def get_blocks(self) -> YuvBlock:
         for start_row in range(0, self.height, self.block_size):
             for start_col in range(0, self.width, self.block_size):
