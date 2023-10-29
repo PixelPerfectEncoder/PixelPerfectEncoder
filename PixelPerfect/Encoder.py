@@ -4,6 +4,7 @@ from PixelPerfect.Yuv import YuvInfo, YuvBlock, YuvFrame
 from PixelPerfect.Coder import Coder, CodecConfig
 from PixelPerfect.Decoder import Decoder
 from PixelPerfect.FileIO import read_video
+from math import log2, floor
 
 class Encoder(Coder):
     def __init__(self, video_info: YuvInfo, config: CodecConfig):
@@ -138,7 +139,13 @@ class Encoder(Coder):
         sequence = self.RLE_coding(sequence)
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
-
+    def cal_entrophy_bitcount(self, data):
+        sequence = self.get_diagonal_sequence(data)
+        sequence = self.RLE_coding(sequence)
+        length = 0
+        for v in sequence:
+            length += 3 + 2 * floor(log2( abs(v)))
+        return length
     def make_block_data(self, row, col, block, residual):
         if self.is_p_frame():
             row_mv = block.row_position - row
@@ -169,10 +176,14 @@ class Encoder(Coder):
                 residual = self.residual_processor.quantization(residual)
             if self.config.do_entropy:
                 residual = self.entrophy_coding(residual)
+            else:
+                self.bitrate += self.cal_entrophy_bitcount(residual);
             # save compressed block
             compressed_data.append(self.make_block_data(row, col, block, residual))
-            self.bitrate+=residual.length;
         self.count+=1
-        self.sum += self.decoder.process(compressed_data).PSNR(frame)
-        self.frame_processed(self.decoder.process(compressed_data))
+        decoded_frame = self.decoder.process(compressed_data)
+        PSNR = decoded_frame.PSNR(frame)
+        print(PSNR)
+        self.sum+=PSNR
+        self.frame_processed(decoded_frame)
         return compressed_data

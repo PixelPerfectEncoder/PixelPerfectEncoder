@@ -70,7 +70,6 @@ class YuvFrame:
         img1 = self.data.astype(np.float64)
         img2 = compressed.data.astype(np.float64)
         mse = np.mean((img1 - img2) ** 2)
-        print(mse)
         PIXEL_MAX = 255.0
         return 20 * log10(255 / sqrt(mse))
     def display(self, duration=1):

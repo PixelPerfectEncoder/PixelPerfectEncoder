@@ -20,7 +20,7 @@ def e3_test():
         do_approximated_residual=True,
         do_dct=False,
         do_quantization=False,
-        do_entropy=True,
+        do_entropy=False,
     )
     encoder = Encoder(video_info, config)
     decoder = Decoder(video_info, config)
@@ -34,15 +34,15 @@ def e4_test():
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
-        i_Period=1,
+        i_Period=-1,
         quant_level=2,
         approximated_residual_n=1,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
-        do_entropy=True,
+        do_entropy=False,
     )
-    for level in [1,2,3,4,5,6,7,8,9,10]:
+    for level in [0,1,2,3,4,5,6,7,8,9,10]:
         config.quant_level = level
         encoder = Encoder(video_info, config)
         decoder = Decoder(video_info, config)
@@ -51,7 +51,8 @@ def e4_test():
             decoded_frame = decoder.process(compressed_data)
             decoded_frame.display()
             if encoder.count == 5:
-                R_D.append((encoder.bitrate,encoder.sum/10))
+                print(encoder.sum)
+                R_D.append((encoder.bitrate,(encoder.sum)/5))
                 break
     R_D.sort()
     print(R_D)
