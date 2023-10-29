@@ -77,7 +77,7 @@ class Encoder(Coder):
         sequence = []
         zero_count = 0
         non_zero_count = 0
-        at_last = True;
+        at_last = True
         for v in reversed(data):
             if v == 0:
                 if non_zero_count != 0:
@@ -127,7 +127,7 @@ class Encoder(Coder):
         length = 0
         for v in sequence:
             if v==0:
-                length+=1;
+                length+=1
             else:
                 length += 3 + 2 * floor(log2( abs(v)))
         return length
@@ -151,11 +151,13 @@ class Encoder(Coder):
         self.total_mae = 0
         if self.is_i_frame():
             intra_decoder = IntraFrameDecoder(self.video_info, self.config)
+        last_row_mv, last_col_mv = 0, 0
         for block in frame.get_blocks():
             if self.is_p_frame():
                 residual, row_mv, col_mv = self.get_inter_data(block)
                 residual = self.compress_residual(residual)
-                compressed_data.append((residual, row_mv, col_mv))
+                compressed_data.append((residual, row_mv - last_row_mv, col_mv - last_col_mv))
+                last_row_mv, last_col_mv = row_mv, col_mv
             else:
                 vertical_ref = np.full([block.block_size, block.block_size], 128)
                 if block.row_position != 0:

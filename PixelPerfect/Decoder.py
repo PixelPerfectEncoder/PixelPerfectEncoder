@@ -42,10 +42,13 @@ class Decoder(Coder):
             )
             block_size = self.config.block_size
             row_block_num = self.previous_frame.width // block_size
+            last_row_mv, last_col_mv = 0, 0
             for seq, data in enumerate(compressed_data):
                 row = seq // row_block_num * block_size
                 col = seq % row_block_num * block_size
-                residual, row_mv, col_mv = data
+                residual, diff_row_mv, diff_col_mv = data
+                row_mv, col_mv = diff_row_mv + last_row_mv, diff_col_mv + last_col_mv
+                last_row_mv, last_col_mv = row_mv, col_mv
                 residual = self.decompress_residual(residual)
                 ref_row = row + row_mv
                 ref_col = col + col_mv
