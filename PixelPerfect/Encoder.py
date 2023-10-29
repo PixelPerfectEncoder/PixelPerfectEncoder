@@ -9,6 +9,11 @@ class Encoder(Coder):
     def __init__(self, video_info: YuvInfo, config: CodecConfig):
         super().__init__(video_info, config)
         self.decoder = Decoder(video_info, config)
+        self.bitrate = 0;
+        self.PNSR_result = 0
+        self.R_D=[]
+        self.count = 0
+        self.sum = 0
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
@@ -166,5 +171,8 @@ class Encoder(Coder):
                 residual = self.entrophy_coding(residual)
             # save compressed block
             compressed_data.append(self.make_block_data(row, col, block, residual))
+            self.bitrate+=residual.length;
+        self.count+=1
+        self.sum += self.decoder.process(compressed_data).PSNR(frame)
         self.frame_processed(self.decoder.process(compressed_data))
         return compressed_data
