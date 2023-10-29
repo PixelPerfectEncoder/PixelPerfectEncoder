@@ -155,6 +155,7 @@ class Encoder(Coder):
             # compress residual
             if self.config.do_approximated_residual:
                 residual = self.residual_processor.approx(residual)
+            print(residual)
             if self.config.do_dct:
                 residual = self.residual_processor.dct_transform(residual)
             if self.config.do_quantization:
@@ -171,7 +172,7 @@ class Encoder(Coder):
                 compressed_data.append((residual, mode))
         self.count += 1
         decoded_frame = self.decoder.process(compressed_data)
-        PSNR = decoded_frame.PSNR(frame)
+        PSNR = decoded_frame.get_psnr(frame)
         print(PSNR)
         self.sum += PSNR
         self.frame_processed(decoded_frame)
