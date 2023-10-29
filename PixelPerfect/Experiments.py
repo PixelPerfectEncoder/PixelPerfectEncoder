@@ -264,3 +264,28 @@ def e3_4_report():
     which one will show clear variation with 𝑖 and/or 𝑟? and why? Explain the results you are seeing
     """
     pass
+
+def e4_1_report():
+    """
+    For a fixed set of parameters (𝑖 = 8 and 16; and search range = 2), create R-D plots where the x
+    axis is the total size in bits of a test sequence, and the y axis is the quality/distortion measured as
+    PSNR. Draw 3 curves: one for an I_Period of 1 (GOP is IIII…), another for an I_Period of 4 (GOP is
+    IPPPIPPP…), and finally another for an I_Period of 10 (IPPPPPPPPPIPP…). You get the different
+    points of a curve by varying the QP parameter (0.. log2(𝑖)+7 – if this is too much, you can skip
+    several and do 0, 3, 6 and 9 for the 8x8 block size, and 1, 4, 7 and 10 for 16x16, but always include
+    these four). Use the first 10 frames of Foreman CIF for testing. You can add more sequences of
+    your choosing, but present them separately. Since you will be running 12×2 (or more) instances
+    of the encoder, it is highly recommended that you write script(s) to run the experiments, collect
+    the results, and put them in a tabular format that easily maps into the desired curves. Record (and
+    plot) the execution times too.
+    """
+    
+    pass
+
+def e4_2_report():
+    """
+    For (𝑖=8, QP=3) and (𝑖=16, QP=4) experiments, plot the bit-count (on-y-axis) vs. frame index (on
+    x-axis) curves. Show plots for three different values of I_Period (1, 4 and 10).
+    """
+    pass
+
