@@ -71,10 +71,10 @@ class Encoder(Coder):
     def get_intra_data(self, block: YuvBlock):
         ref_block = np.roll(block.data, shift=1, axis=0)
         ref_block[0] = 128
-        vertical_residual = block.data - ref_block        
+        vertical_residual = block.data.astype(np.int16) - ref_block.astype(np.int16)  
         ref_block = np.roll(block.data, shift=1, axis=1)
         ref_block[:, 0] = 128
-        horizontal_residual = block.data - ref_block
+        horizontal_residual = block.data.astype(np.int16) - ref_block.astype(np.int16)
         vertical_mae = np.mean(np.abs(vertical_residual))
         horizontal_mae = np.mean(np.abs(horizontal_residual))
         if vertical_mae < horizontal_mae:

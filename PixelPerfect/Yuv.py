@@ -17,10 +17,10 @@ class YuvBlock:
         self.col_position = col
 
     def get_mae(self, reference_data: np.ndarray) -> float:
-        return np.mean(np.abs(self.data - reference_data))
+        return np.mean(np.abs(self.data.astype(np.int16) - reference_data.astype(np.int16)))
 
     def get_residual(self, reference_data: np.ndarray) -> np.ndarray:
-        return self.data - reference_data
+        return self.data.astype(np.int16) - reference_data.astype(np.int16)
 
 class YuvFrame:
     def __init__(self, data, block_size) -> None:

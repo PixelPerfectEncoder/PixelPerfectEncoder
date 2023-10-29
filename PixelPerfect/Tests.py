@@ -40,7 +40,7 @@ def e4_test():
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
-        do_entropy=True,
+        do_entropy=False,
     )
     for level in [0,1,2,3,4,5,6,7,8,9,10]:
         config.quant_level = level
