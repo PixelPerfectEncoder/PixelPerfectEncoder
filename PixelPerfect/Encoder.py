@@ -156,8 +156,7 @@ class Encoder(Coder):
             if self.config.do_approximated_residual:
                 residual = self.residual_processor.approx(residual)
             print(residual)
-            if self.config.do_dct:
-                residual = self.residual_processor.dct_transform(residual)
+              residual = self.residual_processor.dct_transform(residual)
             if self.config.do_quantization:
                 residual = self.residual_processor.quantization(residual)
             if self.config.do_entropy:
