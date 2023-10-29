@@ -26,8 +26,8 @@ def play_foreman_test():
 
 
 def e3_test():
-    filename = "foreman_cif-1.yuv"
-    video_info = YuvInfo(height=288, width=352)
+    filename = "garden.yuv"
+    video_info = YuvInfo(height=240, width=352)
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
@@ -37,7 +37,7 @@ def e3_test():
         do_approximated_residual=True,
         do_dct=False,
         do_quantization=False,
-        do_entropy=True,
+        do_entropy=False,
     )
     encoder = Encoder(video_info, config, get_media_file_path(filename))
     decoder = Decoder(video_info, config)
