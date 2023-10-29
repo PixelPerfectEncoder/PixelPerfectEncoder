@@ -230,7 +230,9 @@ def e3_3_report():
         )
         encoder = Encoder(video_info, config)
         previous_frame = None
-        for seq, frame in enumerate(read_frames(get_media_file_path(filename), video_info, config)):
+        for seq, frame in enumerate(
+            read_frames(get_media_file_path(filename), video_info, config)
+        ):
             compressed_data = encoder.process(frame)
             if seq == 0:
                 previous_frame = encoder.previous_frame
@@ -238,7 +240,9 @@ def e3_3_report():
             previous_data = previous_frame.data.astype(np.int16)
             current_data = frame.data.astype(np.int16)
             residual_before = np.abs(previous_data - current_data).astype(np.uint8)
-            residual_after = np.zeros((video_info.height, video_info.width), dtype=np.uint8)
+            residual_after = np.zeros(
+                (video_info.height, video_info.width), dtype=np.uint8
+            )
             for seq, block_data in enumerate(compressed_data):
                 _, row_mv, col_mv = block_data
                 row_block_num = encoder.previous_frame.width // i
@@ -253,14 +257,43 @@ def e3_3_report():
                     ]
                     - current_data[block_row : block_row + i, block_col : block_col + i]
                 )
-            Image.fromarray(residual_before).save(f'{filename} residual before i={i}.png')
-            Image.fromarray(residual_after).save(f'{filename} residual after i={i}.png')
+            Image.fromarray(residual_before).save(
+                f"{filename} residual before i={i}.png"
+            )
+            Image.fromarray(residual_after).save(f"{filename} residual after i={i}.png")
             break
-        
+
+
 def e3_4_report():
     """
     Given the per-frame PSNR graph measured between original and reconstructed frames and the
     per-frame average MAE graph calculated during the MV selection process in the deliverables,
     which one will show clear variation with 𝑖 and/or 𝑟? and why? Explain the results you are seeing
+    """
+    pass
+
+
+def e4_1_report():
+    """
+    For a fixed set of parameters (𝑖 = 8 and 16; and search range = 2), create R-D plots where the x
+    axis is the total size in bits of a test sequence, and the y axis is the quality/distortion measured as
+    PSNR. Draw 3 curves: one for an I_Period of 1 (GOP is IIII…), another for an I_Period of 4 (GOP is
+    IPPPIPPP…), and finally another for an I_Period of 10 (IPPPPPPPPPIPP…). You get the different
+    points of a curve by varying the QP parameter (0.. log2(𝑖)+7 – if this is too much, you can skip
+    several and do 0, 3, 6 and 9 for the 8x8 block size, and 1, 4, 7 and 10 for 16x16, but always include
+    these four). Use the first 10 frames of Foreman CIF for testing. You can add more sequences of
+    your choosing, but present them separately. Since you will be running 12×2 (or more) instances
+    of the encoder, it is highly recommended that you write script(s) to run the experiments, collect
+    the results, and put them in a tabular format that easily maps into the desired curves. Record (and
+    plot) the execution times too.
+    """
+    
+    pass
+
+
+def e4_2_report():
+    """
+    For (𝑖=8, QP=3) and (𝑖=16, QP=4) experiments, plot the bit-count (on-y-axis) vs. frame index (on
+    x-axis) curves. Show plots for three different values of I_Period (1, 4 and 10).
     """
     pass
