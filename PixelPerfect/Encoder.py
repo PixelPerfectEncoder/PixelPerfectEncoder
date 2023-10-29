@@ -6,24 +6,9 @@ from PixelPerfect.Decoder import Decoder
 from PixelPerfect.FileIO import read_video
 
 class Encoder(Coder):
-    def __init__(self, video_info: YuvInfo, config: CodecConfig, source_path: str):
+    def __init__(self, video_info: YuvInfo, config: CodecConfig):
         super().__init__(video_info, config)
         self.decoder = Decoder(video_info, config)
-        self.source_path = source_path
-
-    def read_frames(self):
-        height = self.video_info.height
-        width = self.video_info.width
-        yuv_frame_size = width * height + (width // 2) * (height // 2) * 2
-        y_frame_size = width * height
-        
-        for yuv_frame_data in read_video(self.source_path, yuv_frame_size):
-            yield YuvFrame(
-                np.frombuffer(yuv_frame_data[:y_frame_size], dtype=np.uint8).reshape(
-                    (height, width)
-                ),
-                self.config.block_size,
-            )
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
@@ -32,8 +17,8 @@ class Encoder(Coder):
         j = block.col_position + dj
         block_size = block.block_size
         if (
-            0 <= i <= self.video_info.height - block_size
-            and 0 <= j <= self.video_info.width - block_size
+            0 <= i <= self.previous_frame.height - block_size
+            and 0 <= j <= self.previous_frame.width - block_size
         ):
             reference_block_data = self.previous_frame.data[
                 i : i + block_size, j : j + block_size
@@ -149,26 +134,37 @@ class Encoder(Coder):
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
 
-    def process(self):
-        for frame in self.read_frames():
-            compressed_data = []
-            for block in frame.get_blocks():
-                # get residual
-                if self.is_p_frame():
-                    residual, row, col = self.get_inter_data(block)
-                else:
-                    residual, row, col = self.get_intra_data(block, frame)
-                # compress residual
-                if self.config.do_approximated_residual:
-                    residual = self.residual_processor.approx(residual)
-                if self.config.do_dct:
-                    residual = self.residual_processor.dct_transform(residual)
-                if self.config.do_quantization:
-                    residual = self.residual_processor.quantization(residual)
-                if self.config.do_entropy:
-                    residual = self.entrophy_coding(residual)
-                # save compressed block
-                compressed_data.append((row, col, residual))
-            yield compressed_data
-            self.frame_processed(self.decoder.process(compressed_data))
-            # self.frame_processed(frame)
+    def make_block_data(self, row, col, block, residual):
+        if self.is_p_frame():
+            row_mv = block.row_position - row
+            col_mv = block.col_position - col
+            return (row_mv, col_mv, residual)
+        else:
+            if block.col_position == col:
+                mode = 1 # vertical
+            else:
+                mode = 0 # horizontal
+            return (mode, residual)
+
+    def process(self, frame: YuvFrame):
+        compressed_data = []
+        self.mae = 0
+        for block in frame.get_blocks():
+            # get residual
+            if self.is_p_frame():
+                residual, row, col = self.get_inter_data(block)
+            else:
+                residual, row, col = self.get_intra_data(block, frame)
+            # compress residual
+            if self.config.do_approximated_residual:
+                residual = self.residual_processor.approx(residual)
+            if self.config.do_dct:
+                residual = self.residual_processor.dct_transform(residual)
+            if self.config.do_quantization:
+                residual = self.residual_processor.quantization(residual)
+            if self.config.do_entropy:
+                residual = self.entrophy_coding(residual)
+            # save compressed block
+            compressed_data.append(self.make_block_data(row, col, block, residual))
+        self.frame_processed(self.decoder.process(compressed_data))
+        return compressed_data

@@ -8,7 +8,6 @@ class ResidualProcessor:
     def init_approx_matrix(self):
         divider = 2 ** self.approximated_residual_n
         self.residual2round = np.array([int(i // divider * divider) for i in range(1000)])
-        print(self.residual2round)
         
     def init_quant_matrix(self):
         self.quant_matrix = np.zeros((self.block_size, self.block_size))
