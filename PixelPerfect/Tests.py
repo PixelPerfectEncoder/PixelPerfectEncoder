@@ -40,7 +40,7 @@ def e4_test():
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
-        do_entropy=True,
+        do_entropy=False,
     )
     encoder = Encoder(video_info, config)
     decoder = Decoder(video_info, config)
@@ -50,6 +50,6 @@ def e4_test():
         decoded_frame.display()
 
 def run_tests():
-    e3_test()
-    # e4_test()
+    # e3_test()
+    e4_test()
     # play_foreman_test()

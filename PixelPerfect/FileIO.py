@@ -56,3 +56,10 @@ def load(id):
 def clean_data(file_ids):
     for id in file_ids:
         os.remove(dataId2filename(id))
+
+def get_test_result_path(filename):
+    parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    parent_dir = os.path.join(parent_dir, "test_result")
+    if not os.path.exists(parent_dir):
+        os.mkdir(parent_dir)
+    return os.path.join(parent_dir, filename)
