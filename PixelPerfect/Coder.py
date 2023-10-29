@@ -56,3 +56,51 @@ class Coder:
 
     def is_i_frame(self):
         return not self.is_p_frame()
+    
+    def decompress_residual(self, residual):
+        if self.config.do_entropy:
+            residual = self.Entrophy_decoding(residual)
+        if self.config.do_quantization:
+            residual = self.residual_processor.de_quantization(residual)
+        if self.config.do_dct:
+            residual = self.residual_processor.de_dct(residual)
+        return residual
+    
+    def RLE_decoding(self, sequence):
+        decoded = []
+        index = 0
+        while index < len(sequence):
+            if sequence[index] < 0:
+                decoded.extend(sequence[index + 1 : index + 1 - sequence[index]])
+                index -= sequence[index]
+            else:
+                decoded.extend([0] * sequence[index])
+            index += 1
+        decoded.extend([0] * (pow(self.config.block_size, 2) - len(decoded)))
+        return decoded
+
+    def Entrophy_decoding(self, data):
+        data.pos = 0
+        RLE_coded = []
+        while data.pos != len(data):
+            RLE_coded.append(data.read("se"))
+        RLE_decoded = self.RLE_decoding(RLE_coded)
+        # put it back to 2d array
+        quantized_data = [
+            [0 for i in range(self.config.block_size)]
+            for j in range(self.config.block_size)
+        ]
+        i = 0
+        for diagonal_length in range(1, self.config.block_size + 1):
+            for j in range(diagonal_length):
+                quantized_data[j][diagonal_length - j - 1] = RLE_decoded[i]
+                i += 1
+        for diagonal_length in range(self.config.block_size - 1, 0, -1):
+            for j in range(diagonal_length):
+                quantized_data[self.config.block_size - diagonal_length + j][
+                    -1 * j - 1
+                ] = RLE_decoded[i]
+                i += 1
+        # retransform the data:
+        quantized_data = np.array(quantized_data)
+        return quantized_data

@@ -74,7 +74,8 @@ class YuvFrame:
         PIXEL_MAX = 255.0
         if mse == 0:
             return 100
-        return 20 * log10(255 / sqrt(mse))
+        return 20 * log10(PIXEL_MAX / sqrt(mse))
+    
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)
         cv2.waitKey(duration)
