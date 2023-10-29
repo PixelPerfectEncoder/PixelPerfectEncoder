@@ -37,14 +37,14 @@ def e4_test():
         i_Period=1,
         quant_level=0,
         approximated_residual_n=1,
-        do_approximated_residual=True,
+        do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
     )
-    for i_p in [1,4,10]:
+    for i_p in [1,4,9]:
         config.i_Period = i_p
-        for level in [0,1,2,3,4,5,6,7,8,9]:
+        for level in [0,1,2,3,4,5,6,7,8,9,10]:
             config.quant_level = level
             encoder = Encoder(video_info, config)
             decoder = Decoder(video_info, config)
@@ -58,9 +58,9 @@ def e4_test():
                     break
         R_D.sort()
         print(R_D)
-        x = [R_D[i][0] for i in range(10)]
-        y = [R_D[i][1] for i in range(10)]
-        plt.plot(x,y,label = "i_period="+str(i_p))
+        x = [R_D[i][0] for i in range(11)]
+        y = [R_D[i][1] for i in range(11)]
+        plt.plot(x,y,str(i_p))
     plt.show()
 
 
@@ -87,5 +87,5 @@ def e4_test():
 
 def run_tests():
     e4_test()
-    # e4_test()
+
     # play_foreman_test()

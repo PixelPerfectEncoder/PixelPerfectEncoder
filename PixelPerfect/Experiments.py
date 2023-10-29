@@ -3,44 +3,134 @@ from PixelPerfect.Encoder import Encoder, CodecConfig
 from PixelPerfect.Yuv import YuvInfo
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
+from PIL import Image
+import numpy as np
+
+videos = {
+    "garden": ("garden.yuv", YuvInfo(height=240, width=352)),
+    "foreman": ("foreman_cif-1.yuv", YuvInfo(height=288, width=352)),
+}
+
+filename, video_info = videos["foreman"]
 
 
-filename = "foreman_cif-1.yuv"
-video_info = YuvInfo(height=288, width=352)
+def e3_1_report_run_once(i, r, n, total_frames=10):
+    print(f"block_size={i}")
+    config = CodecConfig(
+        block_size=i,
+        block_search_offset=r,
+        approximated_residual_n=n,
+        i_Period=-1,
+        do_approximated_residual=True,
+        do_dct=False,
+        do_quantization=False,
+        do_entropy=False,
+    )
+    encoder = Encoder(video_info, config)
+    decoder = Decoder(video_info, config)
+    psnr = []
+    mae = []
+    for seq, frame in enumerate(
+        read_frames(get_media_file_path(filename), video_info, config)
+    ):
+        if seq == total_frames:
+            break
+        print(f"frame={seq}")
+        compressed_data = encoder.process(frame)
+        decoded_frame = decoder.process(compressed_data)
+        psnr.append(decoded_frame.get_psnr(frame))
+        mae.append(encoder.average_mae)
+    return psnr, mae
 
-def varying_block_size_test(block_search_offset, approximated_residual_n):
-    blocksize2psnr = dict()
-    blocksize2mae = dict()
-    for block_size in [2, 4, 8, 16]:
-        config = CodecConfig(
-            block_size=block_size,
-            block_search_offset=block_search_offset,
-            approximated_residual_n=approximated_residual_n,
-            i_Period=-1,
-            do_approximated_residual=True,
-            do_dct=False,
-            do_quantization=False,
-            do_entropy=False,
-        )
-        encoder = Encoder(video_info, config)
-        decoder = Decoder(video_info, config)
-        psnr = []
-        mae = []
-        for frame in read_frames(get_media_file_path(filename), video_info, config):
-            compressed_data = encoder.process(frame)
-            decoded_frame = decoder.process(compressed_data)
-            psnr.append(decoded_frame.get_psnr(frame))
-            mae.append(encoder.average_mae)
-        blocksize2psnr[block_size] = psnr
-        blocksize2mae[block_size] = mae
+
+def varying_i(r, n, total_frames=10):
+    i2psnr = dict()
+    i2mae = dict()
+    for i in [4, 8, 16]:
+        i2psnr[i], i2mae[i] = e3_1_report_run_once(i, r, n, total_frames)
     plt.figure()
-    for block_size, psnr in blocksize2psnr.items():
-        plt.plot(psnr, label=f'block_size={block_size}')
+    for i, psnr in i2psnr.items():
+        plt.plot(psnr, label=f"block_size={i}")
     plt.legend()
-    plt.title('PSNR vs Frame Index')
-    plt.xlabel('Frame Index')
-    plt.ylabel('PSNR')
-    plt.show()
+    plt.title("PSNR vs Frame Index")
+    plt.xlabel("Frame Index")
+    plt.ylabel("PSNR")
+    plt.savefig(
+        f"{filename} PSNR varying_i, r={r}, n={n}, total_frames={total_frames}.png",
+        dpi=300,
+    )
+
+    plt.figure()
+    for i, mae in i2mae.items():
+        plt.plot(mae, label=f"block_size={i}")
+    plt.legend()
+    plt.title("MAE vs Frame Index")
+    plt.xlabel("Frame Index")
+    plt.ylabel("MAE")
+    plt.savefig(
+        f"{filename} MAE varying_i, r={r}, n={n}, total_frames={total_frames}.png",
+        dpi=300,
+    )
+
+
+def varing_r(i, n, total_frames=10):
+    r2psnr = dict()
+    r2mae = dict()
+    for r in [2, 4, 6]:
+        r2psnr[r], r2mae[r] = e3_1_report_run_once(i, r, n, total_frames)
+    plt.figure()
+    for r, psnr in r2psnr.items():
+        plt.plot(psnr, label=f"block_search_offset={r}")
+    plt.legend()
+    plt.title("PSNR vs Frame Index")
+    plt.xlabel("Frame Index")
+    plt.ylabel("PSNR")
+    plt.savefig(
+        f"{filename} PSNR varying_r, i={i}, n={n}, total_frames={total_frames}.png",
+        dpi=300,
+    )
+
+    plt.figure()
+    for r, mae in r2mae.items():
+        plt.plot(mae, label=f"block_search_offset={r}")
+    plt.legend()
+    plt.title("MAE vs Frame Index")
+    plt.xlabel("Frame Index")
+    plt.ylabel("MAE")
+    plt.savefig(
+        f"{filename} MAE varying_r, i={i}, n={n}, total_frames={total_frames}.png",
+        dpi=300,
+    )
+
+
+def varying_n(i, r, total_frames=10):
+    n2psnr = dict()
+    n2mae = dict()
+    for n in [1, 2, 3]:
+        n2psnr[n], n2mae[n] = e3_1_report_run_once(i, r, n, total_frames)
+    plt.figure()
+    for n, psnr in n2psnr.items():
+        plt.plot(psnr, label=f"approximated_residual_n={n}")
+    plt.legend()
+    plt.title("PSNR vs Frame Index")
+    plt.xlabel("Frame Index")
+    plt.ylabel("PSNR")
+    plt.savefig(
+        f"{filename} PSNR varying_n, i={i}, r={r}, total_frames={total_frames}.png",
+        dpi=300,
+    )
+
+    plt.figure()
+    for n, mae in n2mae.items():
+        plt.plot(mae, label=f"approximated_residual_n={n}")
+    plt.legend()
+    plt.title("MAE vs Frame Index")
+    plt.xlabel("Frame Index")
+    plt.ylabel("MAE")
+    plt.savefig(
+        f"{filename} MAE varying_n, i={i}, r={r}, total_frames={total_frames}.png",
+        dpi=300,
+    )
 
 
 def e3_1_report():
@@ -52,5 +142,125 @@ def e3_1_report():
     of Foreman CIF (352x288) are a requirement, plus at least one other sequence of different
     dimensions (number of frames at your discretion).
     """
-    varying_block_size_test(4, 3)
-    
+    varying_i(4, 3)
+    varing_r(8, 3)
+    varying_n(8, 4)
+
+
+def e3_2_report():
+    """
+    For the 𝑖=8, 𝑟=4 and 𝑛=3 case, include a Y-only reconstructed file of the first 10 frames of Foreman
+    CIF (this file should be exactly 1,013,760 bytes in size). Include also a text file with the found
+    motion vectors (the format of this file is arbitrary, but it should contain 15,840 𝑥/𝑦 pairs).
+    """
+    import numpy as np
+
+    def save_as_yuv(data, filename):
+        with open(filename, "wb") as f:
+            for frame in data:
+                f.write(frame.tobytes())
+                f.write(np.zeros((144, 176), dtype=np.uint8).tobytes())
+                f.write(np.zeros((144, 176), dtype=np.uint8).tobytes())
+
+    config = CodecConfig(
+        block_size=8,
+        block_search_offset=4,
+        approximated_residual_n=3,
+        i_Period=-1,
+        do_approximated_residual=True,
+        do_dct=False,
+        do_quantization=False,
+        do_entropy=False,
+    )
+    encoder = Encoder(video_info, config)
+    decoder = Decoder(video_info, config)
+    motion_vectors = list()
+    reconstructed_frames = []
+    for seq, frame in enumerate(
+        read_frames(get_media_file_path(filename), video_info, config)
+    ):
+        if seq == 10:
+            break
+        print(f"frame={seq}")
+        compressed_data = encoder.process(frame)
+        for block_seq, block_data in enumerate(compressed_data):
+            _, row_mv, col_mv = block_data
+            row_block_num = encoder.previous_frame.width // 8
+            block_row = block_seq // row_block_num * 8
+            block_col = block_seq % row_block_num * 8
+            motion_vectors.append(
+                (
+                    f"frame:{seq}, block row:{block_row}, block col:{block_col}",
+                    row_mv,
+                    col_mv,
+                )
+            )
+        decoded_frame = decoder.process(compressed_data)
+        reconstructed_frames.append(decoded_frame.data)
+
+    open(f"motion_vectors {filename} i=8, r=4, n=3.txt", "w").write(
+        "\n".join([str(mv) for mv in motion_vectors])
+    )
+    reconstructed_file_name = f"reconstructed_frames {filename} i=8, r=4, n=3.yuv"
+    save_as_yuv(reconstructed_frames, reconstructed_file_name)
+    for frame in read_frames(reconstructed_file_name, video_info, config):
+        frame.display()
+
+
+def e3_3_report():
+    """
+    For at least two 𝑖 cases of your choice, the residual before and after motion compensation, as well
+    as the predicted frame before reconstruction, similar to what is shown in the Implementation
+    Notes section. You can choose 𝑟, 𝑛, and the frame number as you see fit (but do not choose the
+    first frame – the predicted frame must not be all gray)
+    """
+    # get residual
+    r, n = 4, 3
+    for i in [4, 16]:
+        print(f"block_size={i}")
+        config = CodecConfig(
+            block_size=i,
+            block_search_offset=r,
+            approximated_residual_n=n,
+            i_Period=-1,
+            do_approximated_residual=True,
+            do_dct=False,
+            do_quantization=False,
+            do_entropy=False,
+        )
+        encoder = Encoder(video_info, config)
+        previous_frame = None
+        for seq, frame in enumerate(read_frames(get_media_file_path(filename), video_info, config)):
+            compressed_data = encoder.process(frame)
+            if seq == 0:
+                previous_frame = encoder.previous_frame
+                continue
+            previous_data = previous_frame.data.astype(np.int16)
+            current_data = frame.data.astype(np.int16)
+            residual_before = np.abs(previous_data - current_data).astype(np.uint8)
+            residual_after = np.zeros((video_info.height, video_info.width), dtype=np.uint8)
+            for seq, block_data in enumerate(compressed_data):
+                _, row_mv, col_mv = block_data
+                row_block_num = encoder.previous_frame.width // i
+                block_row = seq // row_block_num * i
+                block_col = seq % row_block_num * i
+                residual_after[
+                    block_row : block_row + i, block_col : block_col + i
+                ] = np.abs(
+                    previous_data[
+                        block_row + row_mv : block_row + row_mv + i,
+                        block_col + col_mv : block_col + col_mv + i,
+                    ]
+                    - current_data[block_row : block_row + i, block_col : block_col + i]
+                )
+            Image.fromarray(residual_before).save(f'{filename} residual before i={i}.png')
+            Image.fromarray(residual_after).save(f'{filename} residual after i={i}.png')
+            break
+        
+def e3_4_report():
+    """
+    Given the per-frame PSNR graph measured between original and reconstructed frames and the
+    per-frame average MAE graph calculated during the MV selection process in the deliverables,
+    which one will show clear variation with 𝑖 and/or 𝑟? and why? Explain the results you are seeing
+    """
+    pass
