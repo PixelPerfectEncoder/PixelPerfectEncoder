@@ -44,6 +44,7 @@ class YuvFrame:
             constant_values=128,
         )
         self.height, self.width = self.padded_frame.shape
+        
     def get_blocks(self) -> YuvBlock:
         for start_row in range(0, self.height, self.block_size):
             for start_col in range(0, self.width, self.block_size):
@@ -71,6 +72,8 @@ class YuvFrame:
         img2 = compressed.data.astype(np.float64)
         mse = np.mean((img1 - img2) ** 2)
         PIXEL_MAX = 255.0
+        if mse == 0:
+            return 100
         return 20 * log10(255 / sqrt(mse))
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)

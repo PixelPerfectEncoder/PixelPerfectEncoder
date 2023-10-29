@@ -50,9 +50,10 @@ class Encoder(Coder):
                 return True, mae
         return False, None
 
-    def find_best_match_block(self, block: YuvBlock) -> YuvBlock:
+    def get_inter_data(self, block: YuvBlock):
         min_mae = float("inf")
         best_i, best_j = None, None
+        best_di, best_dj = None, None
         offset = self.config.block_search_offset
         for di in range(-offset, offset + 1):
             for dj in range(-offset, offset + 1):
@@ -62,43 +63,25 @@ class Encoder(Coder):
                 if is_better_match:
                     min_mae = mae
                     best_i, best_j = block.row_position + di, block.col_position + dj
-
+                    best_di, best_dj = di, dj
         block_size = self.config.block_size
-        return YuvBlock(
-            self.previous_frame.data[
-                best_i : best_i + block_size, best_j : best_j + block_size
-            ],
-            block_size,
-            best_i,
-            best_j,
-        )
+        self.total_mae += min_mae
+        return block.get_residual(self.previous_frame.data[best_i : best_i + block_size, best_j : best_j + block_size]), best_di, best_dj
 
-    def get_inter_data(self, block: YuvBlock):
-        best_match_block = self.find_best_match_block(block)
-        return (
-            block.get_residual(best_match_block.data),
-            best_match_block.row_position,
-            best_match_block.col_position,
-        )
-
-    def get_intra_data(self, block: YuvBlock, current_frame: YuvFrame):
-        min_mae = float("inf")
-        predicted_data = np.zeros([block.block_size, block.block_size], dtype=np.uint8)
-        row, col = block.row_position, block.col_position
-        try_positions = []
-        if block.col_position != 0:
-            try_positions.append((block.row_position, block.col_position - block.block_size))
-        if block.row_position != 0:
-            try_positions.append((block.row_position - block.block_size, block.col_position))
-        for ref_row, ref_col in try_positions:
-            data = current_frame.get_block(ref_row, ref_col).data
-            mae = block.get_mae(data)
-            if mae < min_mae:
-                min_mae = mae
-                predicted_data = data
-                row, col = ref_row, ref_col
-        return block.get_residual(predicted_data), row, col
-
+    def get_intra_data(self, block: YuvBlock):
+        ref_block = np.roll(block.data, shift=1, axis=0)
+        ref_block[0] = 128
+        vertical_residual = block.data - ref_block        
+        ref_block = np.roll(block.data, shift=1, axis=1)
+        ref_block[:, 0] = 128
+        horizontal_residual = block.data - ref_block
+        vertical_mae = np.mean(np.abs(vertical_residual))
+        horizontal_mae = np.mean(np.abs(horizontal_residual))
+        if vertical_mae < horizontal_mae:
+            return vertical_residual, 0
+        else:
+            return horizontal_residual, 1
+                    
     def RLE_coding(self, data):
         sequence = []
         zero_count = 0
@@ -139,6 +122,7 @@ class Encoder(Coder):
         sequence = self.RLE_coding(sequence)
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
+
     def cal_entrophy_bitcount(self, data):
         sequence = self.get_diagonal_sequence(data)
         sequence = self.RLE_coding(sequence)
@@ -158,15 +142,16 @@ class Encoder(Coder):
                 mode = 0 # horizontal
             return (mode, residual)
 
+
     def process(self, frame: YuvFrame):
         compressed_data = []
-        self.mae = 0
+        self.total_mae = 0
         for block in frame.get_blocks():
             # get residual
             if self.is_p_frame():
-                residual, row, col = self.get_inter_data(block)
+                residual, row_mv, col_mv = self.get_inter_data(block)
             else:
-                residual, row, col = self.get_intra_data(block, frame)
+                residual, mode = self.get_intra_data(block)
             # compress residual
             if self.config.do_approximated_residual:
                 residual = self.residual_processor.approx(residual)
@@ -176,14 +161,19 @@ class Encoder(Coder):
                 residual = self.residual_processor.quantization(residual)
             if self.config.do_entropy:
                 residual = self.entrophy_coding(residual)
+                self.bitrate += residual.length
             else:
                 self.bitrate += self.cal_entrophy_bitcount(residual);
             # save compressed block
-            compressed_data.append(self.make_block_data(row, col, block, residual))
-        self.count+=1
+            if self.is_p_frame():
+                compressed_data.append((residual, row_mv, col_mv))
+            else:
+                compressed_data.append((residual, mode))
+        self.count += 1
         decoded_frame = self.decoder.process(compressed_data)
         PSNR = decoded_frame.PSNR(frame)
         print(PSNR)
-        self.sum+=PSNR
+        self.sum += PSNR
         self.frame_processed(decoded_frame)
+        self.average_mae = self.total_mae / len(compressed_data)
         return compressed_data
