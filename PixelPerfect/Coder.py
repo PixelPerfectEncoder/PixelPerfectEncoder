@@ -1,5 +1,5 @@
 import numpy as np
-from PixelPerfect.Yuv import YuvFrame, YuvInfo
+from PixelPerfect.Yuv import YuvFrame
 from PixelPerfect.ResidualProcessor import ResidualProcessor
 
 
@@ -28,12 +28,13 @@ class CodecConfig:
 
 
 class Coder:
-    def __init__(self, video_info: YuvInfo, config: CodecConfig) -> None:
+    def __init__(self, height, width, config: CodecConfig) -> None:
         self.frame_seq = 0
         self.config = config
-        self.video_info = video_info
+        self.height = height
+        self.width = width
         self.previous_frame = YuvFrame(
-            np.full((self.video_info.height, self.video_info.width), 128),
+            np.full((self.height, self.width), 128),
             self.config.block_size,
         )
         self.residual_processor = ResidualProcessor(

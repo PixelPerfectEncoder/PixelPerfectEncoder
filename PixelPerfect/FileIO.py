@@ -1,13 +1,13 @@
 import uuid
 import pickle
 import os
-from PixelPerfect.Yuv import YuvInfo, YuvFrame
+from PixelPerfect.Yuv import YuvFrame
 from PixelPerfect.Coder import CodecConfig
 import numpy as np
 
-def read_frames(source_path, video_info: YuvInfo, config: CodecConfig):
-    height = video_info.height
-    width = video_info.width
+def read_frames(source_path, height, width, config: CodecConfig):
+    height = height
+    width = width
     yuv_frame_size = width * height + (width // 2) * (height // 2) * 2
     y_frame_size = width * height
     

@@ -1,14 +1,14 @@
 import numpy as np
 from bitstring import BitArray, BitStream
-from PixelPerfect.Yuv import YuvInfo, YuvBlock, YuvFrame
+from PixelPerfect.Yuv import YuvBlock, YuvFrame
 from PixelPerfect.Coder import Coder, CodecConfig
 from PixelPerfect.Decoder import Decoder, IntraFrameDecoder
 from math import log2, floor
 
 class Encoder(Coder):
-    def __init__(self, video_info: YuvInfo, config: CodecConfig):
-        super().__init__(video_info, config)
-        self.decoder = Decoder(video_info, config)
+    def __init__(self, height, width, config: CodecConfig):
+        super().__init__(height, width, config)
+        self.decoder = Decoder(height, width, config)
         self.bitrate = 0
 
     def is_better_match_block(
@@ -146,41 +146,53 @@ class Encoder(Coder):
             self.bitrate += self.cal_entrophy_bitcount(residual)
         return residual
 
-    def process(self, frame: YuvFrame):
+    def process_p_frame(self, frame: YuvFrame):
         compressed_data = []
         self.total_mae = 0
-        if self.is_i_frame():
-            intra_decoder = IntraFrameDecoder(self.video_info, self.config)
         last_row_mv, last_col_mv = 0, 0
         for block in frame.get_blocks():
-            if self.is_p_frame():
-                residual, row_mv, col_mv = self.get_inter_data(block)
-                residual = self.compress_residual(residual)
-                compressed_data.append((residual, row_mv - last_row_mv, col_mv - last_col_mv))
-                last_row_mv, last_col_mv = row_mv, col_mv
-            else:
-                vertical_ref = np.full([block.block_size, block.block_size], 128)
-                if block.row_position != 0:
-                    vertical_ref_row = intra_decoder.frame[
-                        block.row_position - 1 : block.row_position,
-                        block.col_position : block.col_position + block.block_size,
-                    ]
-                    vertical_ref = np.repeat(vertical_ref_row, repeats=block.block_size, axis=0)
-                    
-                horizontal_ref = np.full([block.block_size, block.block_size], 128)
-                if block.col_position != 0:
-                    horizontal_ref_col = intra_decoder.frame[
-                        block.row_position : block.row_position + block.block_size,
-                        block.col_position - 1 : block.col_position,
-                    ]
-                    horizontal_ref = np.repeat(horizontal_ref_col, repeats=block.block_size, axis=1)
-                    
-                residual, mode = self.get_intra_data(vertical_ref, horizontal_ref, block)
-                residual = self.compress_residual(residual)
-                intra_decoder.process((residual, mode))
-                compressed_data.append((residual, mode))
-                
+            residual, row_mv, col_mv = self.get_inter_data(block)
+            residual = self.compress_residual(residual)
+            compressed_data.append((residual, row_mv - last_row_mv, col_mv - last_col_mv))
+            last_row_mv, last_col_mv = row_mv, col_mv
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
         self.average_mae = self.total_mae / len(compressed_data)
         return compressed_data
+    
+    def process_i_frame(self, frame: YuvFrame):
+        compressed_data = []
+        self.total_mae = 0
+        intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
+        for block in frame.get_blocks():
+            vertical_ref = np.full([block.block_size, block.block_size], 128)
+            if block.row_position != 0:
+                vertical_ref_row = intra_decoder.frame[
+                    block.row_position - 1 : block.row_position,
+                    block.col_position : block.col_position + block.block_size,
+                ]
+                vertical_ref = np.repeat(vertical_ref_row, repeats=block.block_size, axis=0)
+                
+            horizontal_ref = np.full([block.block_size, block.block_size], 128)
+            if block.col_position != 0:
+                horizontal_ref_col = intra_decoder.frame[
+                    block.row_position : block.row_position + block.block_size,
+                    block.col_position - 1 : block.col_position,
+                ]
+                horizontal_ref = np.repeat(horizontal_ref_col, repeats=block.block_size, axis=1)
+                
+            residual, mode = self.get_intra_data(vertical_ref, horizontal_ref, block)
+            residual = self.compress_residual(residual)
+            intra_decoder.process((residual, mode))
+            compressed_data.append((residual, mode))
+        decoded_frame = self.decoder.process(compressed_data)
+        self.frame_processed(decoded_frame)
+        self.average_mae = self.total_mae / len(compressed_data)
+        return compressed_data
+
+        
+    def process(self, frame: YuvFrame):
+        if self.is_i_frame():
+            return self.process_i_frame(frame)
+        else:
+            return self.process_p_frame(frame)

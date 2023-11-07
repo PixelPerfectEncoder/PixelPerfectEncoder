@@ -1,12 +1,6 @@
 import numpy as np
 import cv2
-import math
 from math import log10, sqrt
-
-class YuvInfo:
-    def __init__(self, height, width) -> None:
-        self.height = height
-        self.width = width
 
 
 class YuvBlock:

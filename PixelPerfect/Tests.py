@@ -1,17 +1,16 @@
 from PixelPerfect.Decoder import Decoder
 from PixelPerfect.Encoder import Encoder, CodecConfig
-from PixelPerfect.Yuv import YuvInfo
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 
 videos = {
-    "garden": ("garden.yuv", YuvInfo(height=240, width=352)),
-    "foreman": ("foreman_cif-1.yuv", YuvInfo(height=288, width=352)),
+    "garden": ("garden.yuv", 240, 352),
+    "foreman": ("foreman_cif-1.yuv", 288, 352),
 }
 
 
 def e3_test():
-    filename, video_info = videos["garden"]
+    filename, height, width = videos["garden"]
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
@@ -23,16 +22,16 @@ def e3_test():
         do_quantization=False,
         do_entropy=False,
     )
-    encoder = Encoder(video_info, config)
-    decoder = Decoder(video_info, config)
-    for frame in read_frames(get_media_file_path(filename), video_info, config):
+    encoder = Encoder(height, width, config)
+    decoder = Decoder(height, width, config)
+    for frame in read_frames(get_media_file_path(filename), height, width, config):
         compressed_data = encoder.process(frame)
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
 
 
 def e4_test():
-    filename, video_info = videos["foreman"]
+    filename, height, width = videos["foreman"]
     R_D = []
     config = CodecConfig(
         block_size=16,
@@ -49,10 +48,10 @@ def e4_test():
         config.i_Period = i_p
         for level in [0,1,2,3,4,5,6,7,8,9,10]:
             config.quant_level = level
-            encoder = Encoder(video_info, config)
-            decoder = Decoder(video_info, config)
+            encoder = Encoder(height, width, config)
+            decoder = Decoder(height, width, config)
             psnr_sum = 0
-            for seq, frame in enumerate(read_frames(get_media_file_path(filename), video_info, config)):
+            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
                 compressed_data = encoder.process(frame)
                 decoded_frame = decoder.process(compressed_data)
                 decoded_frame.display()
@@ -71,7 +70,7 @@ def e4_test():
 
 
 def e4_simple_test():
-    filename, video_info = videos["foreman"]
+    filename, height, width = videos["foreman"]
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
@@ -83,9 +82,9 @@ def e4_simple_test():
         do_quantization=True,
         do_entropy=False,
     )
-    encoder = Encoder(video_info, config)
-    decoder = Decoder(video_info, config)
-    for frame in read_frames(get_media_file_path(filename), video_info, config):
+    encoder = Encoder(height, width, config)
+    decoder = Decoder(height, width, config)
+    for frame in read_frames(get_media_file_path(filename), height, width, config):
         compressed_data = encoder.process(frame)
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()

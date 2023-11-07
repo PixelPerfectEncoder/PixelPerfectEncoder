@@ -1,17 +1,16 @@
 from PixelPerfect.Decoder import Decoder
 from PixelPerfect.Encoder import Encoder, CodecConfig
-from PixelPerfect.Yuv import YuvInfo
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 from PIL import Image
 import numpy as np
 
 videos = {
-    "garden": ("garden.yuv", YuvInfo(height=240, width=352)),
-    "foreman": ("foreman_cif-1.yuv", YuvInfo(height=288, width=352)),
+    "garden": ("garden.yuv", 240, 352),
+    "foreman": ("foreman_cif-1.yuv", 288, 352),
 }
 
-filename, video_info = videos["foreman"]
+filename, height, width = videos["foreman"]
 
 
 def e3_1_report_run_once(i, r, n, total_frames=10):
@@ -26,12 +25,12 @@ def e3_1_report_run_once(i, r, n, total_frames=10):
         do_quantization=False,
         do_entropy=False,
     )
-    encoder = Encoder(video_info, config)
-    decoder = Decoder(video_info, config)
+    encoder = Encoder(height, width, config)
+    decoder = Decoder(height, width, config)
     psnr = []
     mae = []
     for seq, frame in enumerate(
-        read_frames(get_media_file_path(filename), video_info, config)
+        read_frames(get_media_file_path(filename), height, width, config)
     ):
         if seq == total_frames:
             break
@@ -172,12 +171,12 @@ def e3_2_report():
         do_quantization=False,
         do_entropy=False,
     )
-    encoder = Encoder(video_info, config)
-    decoder = Decoder(video_info, config)
+    encoder = Encoder(height, width, config)
+    decoder = Decoder(height, width, config)
     motion_vectors = list()
     reconstructed_frames = []
     for seq, frame in enumerate(
-        read_frames(get_media_file_path(filename), video_info, config)
+        read_frames(get_media_file_path(filename), height, width, config)
     ):
         if seq == 10:
             break
@@ -203,7 +202,7 @@ def e3_2_report():
     )
     reconstructed_file_name = f"reconstructed_frames {filename} i=8, r=4, n=3.yuv"
     save_as_yuv(reconstructed_frames, reconstructed_file_name)
-    for frame in read_frames(reconstructed_file_name, video_info, config):
+    for frame in read_frames(reconstructed_file_name, height, width, config):
         frame.display()
 
 
@@ -228,10 +227,10 @@ def e3_3_report():
             do_quantization=False,
             do_entropy=False,
         )
-        encoder = Encoder(video_info, config)
+        encoder = Encoder(height, width, config)
         previous_frame = None
         for seq, frame in enumerate(
-            read_frames(get_media_file_path(filename), video_info, config)
+            read_frames(get_media_file_path(filename), height, width, config)
         ):
             compressed_data = encoder.process(frame)
             if seq == 0:
@@ -241,7 +240,7 @@ def e3_3_report():
             current_data = frame.data.astype(np.int16)
             residual_before = np.abs(previous_data - current_data).astype(np.uint8)
             residual_after = np.zeros(
-                (video_info.height, video_info.width), dtype=np.uint8
+                (height, width), dtype=np.uint8
             )
             for seq, block_data in enumerate(compressed_data):
                 _, row_mv, col_mv = block_data

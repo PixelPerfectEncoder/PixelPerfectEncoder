@@ -1,10 +1,10 @@
-from PixelPerfect.Yuv import YuvInfo, YuvFrame
+from PixelPerfect.Yuv import YuvFrame
 from PixelPerfect.Coder import CodecConfig, Coder
 import numpy as np
 
 class IntraFrameDecoder(Coder):
-    def __init__(self, video_info: YuvInfo, config: CodecConfig) -> None:
-        super().__init__(video_info, config)
+    def __init__(self, height, width, config: CodecConfig) -> None:
+        super().__init__(height, width, config)
         self.frame = np.zeros(
             [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
         )
@@ -32,8 +32,8 @@ class IntraFrameDecoder(Coder):
         self.seq += 1
 
 class Decoder(Coder):
-    def __init__(self, video_info: YuvInfo, config: CodecConfig):
-        super().__init__(video_info, config)
+    def __init__(self, height, width, config: CodecConfig):
+        super().__init__(height, width, config)
 
     def process(self, compressed_data):
         if self.is_p_frame():
@@ -60,7 +60,7 @@ class Decoder(Coder):
                 )
                 frame[row : row + block_size, col : col + block_size] = reconstructed_block
         else:
-            intra_decoder = IntraFrameDecoder(self.video_info, self.config)
+            intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
             for data in compressed_data:
                 intra_decoder.process(data)
             frame = intra_decoder.frame    
