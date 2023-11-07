@@ -11,10 +11,10 @@ class ResidualProcessor:
         
     def init_quant_matrix(self):
         self.quant_matrix = np.zeros((self.block_size, self.block_size))
-        if self.quant_level < 0:
-            raise Exception("Error! the quanti_level must be larger than 0")
-        elif self.quant_level > math.log(self.block_size + 7, 2):
-            raise Exception("Error! the quanti_level is too large")
+        # if self.quant_level < 0:
+        #     raise Exception("Error! the quanti_level must be larger than 0")
+        # elif self.quant_level > math.log(self.block_size + 7, 2):
+        #     raise Exception("Error! the quanti_level is too large")
         for iy, ix in np.ndindex(self.quant_matrix.shape):
             if (ix + iy) < self.block_size - 1:
                 self.quant_matrix[iy][ix] = math.pow(2, self.quant_level)
@@ -35,6 +35,7 @@ class ResidualProcessor:
 
     def dct_transform(self, residuals):
         transform = dct(dct(residuals.T, norm="ortho").T, norm="ortho")
+        transform = np.round(transform)
         return transform
 
     def quantization(self, dct):

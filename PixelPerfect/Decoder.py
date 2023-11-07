@@ -2,70 +2,54 @@ from PixelPerfect.Yuv import YuvInfo, YuvFrame
 from PixelPerfect.Coder import CodecConfig, Coder
 import numpy as np
 
+class IntraFrameDecoder(Coder):
+    def __init__(self, video_info: YuvInfo, config: CodecConfig) -> None:
+        super().__init__(video_info, config)
+        self.frame = np.zeros(
+            [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
+        )
+        self.seq = 0
+    
+    def process(self, compressed_block_data):
+        residual, mode = compressed_block_data
+        block_size = self.config.block_size
+        row_block_num = self.previous_frame.width // block_size
+        row = self.seq // row_block_num * block_size
+        col = self.seq % row_block_num * block_size
+        residual = self.decompress_residual(residual)
+        ref_block = np.full([block_size, block_size], 128)
+        if mode == 0: # vertical
+            if row != 0:
+                ref_row = self.frame[row - 1 : row, col : col + block_size]
+                ref_block = np.repeat(ref_row, repeats=block_size, axis=0)
+        else: # horizontal
+            if col != 0: 
+                ref_col = self.frame[row : row + block_size, col - 1 : col]
+                ref_block = np.repeat(ref_col, repeats=block_size, axis=1)
+        self.frame[row : row + block_size, col : col + block_size] = (
+            residual + ref_block
+        )
+        self.seq += 1
 
 class Decoder(Coder):
     def __init__(self, video_info: YuvInfo, config: CodecConfig):
         super().__init__(video_info, config)
 
-    def RLE_decoding(self, sequence):
-        decoded = []
-        index = 0
-        while index < len(sequence):
-            if sequence[index] < 0:
-                decoded.extend(sequence[index + 1 : index + 1 - sequence[index]])
-                index -= sequence[index]
-            else:
-                decoded.extend([0] * sequence[index])
-            index += 1
-        decoded.extend([0] * (pow(self.config.block_size, 2) - len(decoded)))
-        return decoded
-
-    def Entrophy_decoding(self, data):
-        data.pos = 0
-        RLE_coded = []
-        while data.pos != len(data):
-            RLE_coded.append(data.read("se"))
-        RLE_decoded = self.RLE_decoding(RLE_coded)
-        # put it back to 2d array
-        quantized_data = [
-            [0 for i in range(self.config.block_size)]
-            for j in range(self.config.block_size)
-        ]
-        i = 0
-        for diagonal_length in range(1, self.config.block_size + 1):
-            for j in range(diagonal_length):
-                quantized_data[j][diagonal_length - j - 1] = RLE_decoded[i]
-                i += 1
-        for diagonal_length in range(self.config.block_size - 1, 0, -1):
-            for j in range(diagonal_length):
-                quantized_data[self.config.block_size - diagonal_length + j][
-                    -1 * j - 1
-                ] = RLE_decoded[i]
-                i += 1
-        # retransform the data:
-        quantized_data = np.array(quantized_data)
-        return quantized_data
-
     def process(self, compressed_data):
-        frame = np.zeros(
-            [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
-        )
-        block_size = self.config.block_size
-        row_block_num = self.previous_frame.width // block_size
-        for seq, data in enumerate(compressed_data):
-            row = seq // row_block_num * block_size
-            col = seq % row_block_num * block_size
-            if self.is_p_frame():
-                residual, row_mv, col_mv = data
-            else:
-                residual, mode = data
-            if self.config.do_entropy:
-                residual = self.Entrophy_decoding(residual)
-            if self.config.do_quantization:
-                residual = self.residual_processor.de_quantization(residual)
-            if self.config.do_dct:
-                residual = self.residual_processor.de_dct(residual)
-            if self.is_p_frame():
+        if self.is_p_frame():
+            frame = np.zeros(
+                [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
+            )
+            block_size = self.config.block_size
+            row_block_num = self.previous_frame.width // block_size
+            last_row_mv, last_col_mv = 0, 0
+            for seq, data in enumerate(compressed_data):
+                row = seq // row_block_num * block_size
+                col = seq % row_block_num * block_size
+                residual, diff_row_mv, diff_col_mv = data
+                row_mv, col_mv = diff_row_mv + last_row_mv, diff_col_mv + last_col_mv
+                last_row_mv, last_col_mv = row_mv, col_mv
+                residual = self.decompress_residual(residual)
                 ref_row = row + row_mv
                 ref_col = col + col_mv
                 reconstructed_block = (
@@ -74,26 +58,13 @@ class Decoder(Coder):
                     ]
                     + residual
                 )
-            else:
-                reconstructed_block = np.zeros([block_size, block_size], dtype=np.uint8)
-                if mode == 0:  # vertical
-                    for i in range(block_size):
-                        if i == 0:
-                            reconstructed_block[i] = residual[i] + 128
-                        else:
-                            reconstructed_block[i] = (
-                                residual[i] + reconstructed_block[i - 1]
-                            )
-                else:  # horizontal
-                    for j in range(block_size):
-                        if j == 0:
-                            reconstructed_block[:, j] = residual[:, j] + 128
-                        else:
-                            reconstructed_block[:, j] = (
-                                residual[:, j] + reconstructed_block[:, j - 1]
-                            )
-            frame[row : row + block_size, col : col + block_size] = reconstructed_block
-
+                frame[row : row + block_size, col : col + block_size] = reconstructed_block
+        else:
+            intra_decoder = IntraFrameDecoder(self.video_info, self.config)
+            for data in compressed_data:
+                intra_decoder.process(data)
+            frame = intra_decoder.frame    
+            
         frame = np.clip(frame, 0, 255)
         res = YuvFrame(frame, self.config.block_size)
         self.frame_processed(res)

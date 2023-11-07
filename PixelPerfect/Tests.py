@@ -2,15 +2,16 @@ from PixelPerfect.Decoder import Decoder
 from PixelPerfect.Encoder import Encoder, CodecConfig
 from PixelPerfect.Yuv import YuvInfo
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
-
+import matplotlib.pyplot as plt
 
 videos = {
-    'garden': ('garden.yuv', YuvInfo(height=240, width=352)),
-    'foreman': ('foreman_cif-1.yuv', YuvInfo(height=288, width=352)),
+    "garden": ("garden.yuv", YuvInfo(height=240, width=352)),
+    "foreman": ("foreman_cif-1.yuv", YuvInfo(height=288, width=352)),
 }
 
+
 def e3_test():
-    filename, video_info = videos['garden']
+    filename, video_info = videos["garden"]
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
@@ -29,8 +30,10 @@ def e3_test():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
 
+
 def e4_test():
-    filename, video_info = videos['foreman']
+    filename, video_info = videos["foreman"]
+    R_D = []
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
@@ -42,7 +45,6 @@ def e4_test():
         do_quantization=True,
         do_entropy=False,
     )
-    plt.figure()
     for i_p in [1,4,10]:
         config.i_Period = i_p
         for level in [0,1,2,3,4,5,6,7,8,9,10]:
@@ -87,8 +89,7 @@ def e4_simple_test():
         compressed_data = encoder.process(frame)
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
-
 def run_tests():
-    # e3_test()
     e4_test()
+
     # play_foreman_test()

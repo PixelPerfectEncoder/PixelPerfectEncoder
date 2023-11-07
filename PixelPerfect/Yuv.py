@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
-
+import math
+from math import log10, sqrt
 
 class YuvInfo:
     def __init__(self, height, width) -> None:
@@ -66,6 +67,15 @@ class YuvFrame:
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)
 
+    def PSNR(self, compressed):
+        img1 = self.data.astype(np.float64)
+        img2 = compressed.data.astype(np.float64)
+        mse = np.mean((img1 - img2) ** 2)
+        PIXEL_MAX = 255.0
+        if mse == 0:
+            return 100
+        return 20 * log10(PIXEL_MAX / sqrt(mse))
+    
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)
         cv2.waitKey(duration)

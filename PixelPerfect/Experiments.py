@@ -272,7 +272,6 @@ def e3_4_report():
     """
     pass
 
-
 def e4_1_report():
     """
     For a fixed set of parameters (𝑖 = 8 and 16; and search range = 2), create R-D plots where the x
@@ -290,10 +289,10 @@ def e4_1_report():
     
     pass
 
-
 def e4_2_report():
     """
     For (𝑖=8, QP=3) and (𝑖=16, QP=4) experiments, plot the bit-count (on-y-axis) vs. frame index (on
     x-axis) curves. Show plots for three different values of I_Period (1, 4 and 10).
     """
     pass
+
