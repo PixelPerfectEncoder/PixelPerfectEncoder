@@ -62,7 +62,7 @@ class Coder:
     
     
      
-    #region Decoding    
+    #region Decoding
     def RLE_decoding(self, sequence):
         decoded = []
         index = 0
@@ -95,7 +95,7 @@ class Coder:
                 i += 1
         # retransform the data:
         quantized_data = np.array(quantized_data)
-
+        return quantized_data
 
     def Entrophy_decoding(self, data):
         data.pos = 0
@@ -107,8 +107,8 @@ class Coder:
     
     def decompress_residual(self, residual):
         if self.config.do_entropy:
-            residual = self.dediagonalize_sequence(residual)
             residual = self.Entrophy_decoding(residual)
+            residual = self.dediagonalize_sequence(residual)
         if self.config.do_quantization:
             residual = self.residual_processor.de_quantization(residual)
         if self.config.do_dct:
