@@ -87,12 +87,12 @@ class Encoder(Coder):
         compressed_data = (compressed_residual, self.compress_descriptors(descriptors))
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
-        self.average_mae = self.total_mae / len(compressed_data)
+        self.average_mae = self.total_mae / len(compressed_residual)
         return compressed_data
     
     def process_i_frame(self, frame: YuvFrame):
-        compressed_data = []
-        self.total_mae = 0
+        compressed_residual = []
+        descriptors = []
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
         for block in frame.get_blocks():
             vertical_ref = np.full([block.block_size, block.block_size], 128)
@@ -113,11 +113,13 @@ class Encoder(Coder):
                 
             residual, mode = self.get_intra_data(vertical_ref, horizontal_ref, block)
             residual = self.compress_residual(residual)
-            intra_decoder.process((residual, mode))
-            compressed_data.append((residual, mode))
+            intra_decoder.process(residual, mode)
+            compressed_residual.append(residual)
+            descriptors.append(mode)
+            
+        compressed_data = (compressed_residual, self.compress_descriptors(descriptors))
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
-        self.average_mae = self.total_mae / len(compressed_data)
         return compressed_data
 
     def process(self, frame: YuvFrame):

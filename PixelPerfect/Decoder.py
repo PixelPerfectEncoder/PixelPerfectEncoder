@@ -10,8 +10,7 @@ class IntraFrameDecoder(Coder):
         )
         self.seq = 0
     
-    def process(self, compressed_block_data):
-        residual, mode = compressed_block_data
+    def process(self, residual, mode):
         block_size = self.config.block_size
         row_block_num = self.previous_frame.width // block_size
         row = self.seq // row_block_num * block_size
@@ -66,9 +65,11 @@ class Decoder(Coder):
         return res
   
     def process_i_frame(self, compressed_data):
+        compressed_residual, compressed_descriptors = compressed_data
+        descriptors = self.decompress_descriptors(compressed_descriptors)
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
-        for data in compressed_data:
-            intra_decoder.process(data)
+        for seq, residual in enumerate(compressed_residual):
+            intra_decoder.process(residual, descriptors[seq])
         frame = intra_decoder.frame
         frame = np.clip(frame, 0, 255)
         res = YuvFrame(frame, self.config.block_size)
