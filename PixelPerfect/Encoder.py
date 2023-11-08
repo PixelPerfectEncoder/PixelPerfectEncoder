@@ -1,15 +1,13 @@
 import numpy as np
-from bitstring import BitArray, BitStream
 from PixelPerfect.Yuv import YuvBlock, YuvFrame
 from PixelPerfect.Coder import Coder, CodecConfig
 from PixelPerfect.Decoder import Decoder, IntraFrameDecoder
-from math import log2, floor
+
 
 class Encoder(Coder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
         self.decoder = Decoder(height, width, config)
-        self.bitrate = 0
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
@@ -73,88 +71,20 @@ class Encoder(Coder):
         else:
             return horizontal_residual, 1
                     
-    def RLE_coding(self, data):
-        sequence = []
-        zero_count = 0
-        non_zero_count = 0
-        at_last = True
-        for v in reversed(data):
-            if v == 0:
-                if non_zero_count != 0:
-                    sequence.append(non_zero_count)
-                    non_zero_count = 0
-                zero_count += 1
-            else:
-                if zero_count != 0:
-                    if at_last:
-                        sequence.append(0)
-                        zero_count = 0
-                        at_last = False
-                    else:
-                        sequence.append(zero_count)
-                        zero_count = 0
-                non_zero_count -= 1
-                at_last = False
-                sequence.append(v)
-        if non_zero_count != 0:
-            sequence.append(non_zero_count)
-        else:
-            sequence.append(zero_count)
-        sequence.reverse()
-        return sequence
-
-    def get_diagonal_sequence(self, data):
-        max_col = data.shape[1]
-        max_row = data.shape[0]
-        fdiag = [[] for _ in range(max_row + max_col - 1)]
-        for y in range(max_col):
-            for x in range(max_row):
-                fdiag[x + y].append(data[y, x])
-        sequence = []
-        for diag in fdiag:
-            sequence.extend(diag)
-        return sequence
-
-    def entrophy_coding(self, data):
-        sequence = self.get_diagonal_sequence(data)
-        sequence = self.RLE_coding(sequence)
-        bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
-        return bit_sequence
-
-    def cal_entrophy_bitcount(self, data):
-        sequence = self.get_diagonal_sequence(data)
-        sequence = self.RLE_coding(sequence)
-        length = 0
-        for v in sequence:
-            if v==0:
-                length+=1
-            else:
-                length += 3 + 2 * floor(log2( abs(v)))
-        return length
-
-    def compress_residual(self, residual):
-        if self.config.do_approximated_residual:
-            residual = self.residual_processor.approx(residual)
-        if self.config.do_dct:
-            residual = self.residual_processor.dct_transform(residual)
-        if self.config.do_quantization:
-            residual = self.residual_processor.quantization(residual)
-        if self.config.do_entropy:
-            residual = self.entrophy_coding(residual)
-            self.bitrate += residual.length
-        else:
-            self.bitrate += self.cal_entrophy_bitcount(residual)
-        return residual
-
     def process_p_frame(self, frame: YuvFrame):
-        compressed_data = []
+        compressed_residual = []
+        descriptors = []
         self.total_mae = 0
         last_row_mv, last_col_mv = 0, 0
         for block in frame.get_blocks():
             residual, row_mv, col_mv = self.get_inter_data(block)
             residual = self.compress_residual(residual)
-            compressed_data.append((residual, row_mv - last_row_mv, col_mv - last_col_mv))
+            compressed_residual.append(residual)
+            descriptors.append(row_mv - last_row_mv)
+            descriptors.append(col_mv - last_col_mv)
             last_row_mv, last_col_mv = row_mv, col_mv
+            
+        compressed_data = (compressed_residual, self.compress_descriptors(descriptors))
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
         self.average_mae = self.total_mae / len(compressed_data)
@@ -190,7 +120,6 @@ class Encoder(Coder):
         self.average_mae = self.total_mae / len(compressed_data)
         return compressed_data
 
-        
     def process(self, frame: YuvFrame):
         if self.is_i_frame():
             return self.process_i_frame(frame)
