@@ -43,10 +43,12 @@ def e4_test():
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
+        FMEEnable = False,
     )
     for i_p in [1,4,10]:
         config.i_Period = i_p
         for level in [0,1,2,3,4,5,6,7,8,9,10]:
+        # for level in [8,9,10]:
             config.quant_level = level
             encoder = Encoder(height, width, config)
             decoder = Decoder(height, width, config)
@@ -58,12 +60,12 @@ def e4_test():
                 psnr_sum += decoded_frame.PSNR(frame)
                 if seq == 10:
                     print(psnr_sum)
-                    R_D.append((encoder.bitrate, (psnr_sum) / 10))
+                    R_D.append((encoder.bitrate, (psnr_sum) / 11))
                     break
         R_D.sort()
         print(R_D)
-        x = [R_D[i][0] for i in range(10)]
-        y = [R_D[i][1] for i in range(10)]
+        x = [R_D[i][0] for i in range(11)]
+        y = [R_D[i][1] for i in range(11)]
         R_D = []
         plt.plot(x, y, label='i_period='+str(i_p), linewidth=0.5)
     plt.show()

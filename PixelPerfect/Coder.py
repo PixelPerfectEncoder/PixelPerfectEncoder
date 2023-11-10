@@ -16,6 +16,7 @@ class CodecConfig:
         do_dct: bool = False,
         do_quantization: bool = False,
         do_entropy: bool = False,
+        FMEEnable: bool = False,
     ) -> None:
         self.block_size = block_size
         self.block_search_offset = block_search_offset
@@ -26,6 +27,7 @@ class CodecConfig:
         self.do_dct = do_dct
         self.do_quantization = do_quantization
         self.do_entropy = do_entropy
+        self.FMEEnable = FMEEnable
 
 
 class Coder:
