@@ -1,6 +1,8 @@
 import math
 import numpy as np
-from scipy.fftpack import idct, dct
+import torch
+# import torch_dct as dct
+from scipy.fft import idct, dct, idctn, dctn
 
 
 class ResidualProcessor:
@@ -33,10 +35,8 @@ class ResidualProcessor:
         return self.residual2round[np.abs(residual)] * np.sign(residual)
 
     def dct_transform(self, residuals):
-        transform = dct(dct(residuals.T, norm="ortho").T, norm="ortho")
-        transform = np.round(transform)
+        transform = dctn(residuals)
         return transform
-
     def quantization(self, dct):
         quantized = np.divide(dct, self.quant_matrix)
         quantized = np.round(quantized)
@@ -47,5 +47,11 @@ class ResidualProcessor:
         return original
 
     def de_dct(self, data):
-        original = idct(idct(data.T, norm="ortho").T, norm="ortho")
+        original = idctn(data);
         return original
+        # return dct.idct_2d(torch.from_numpy(residual)).numpy()
+
+
+
+
+
