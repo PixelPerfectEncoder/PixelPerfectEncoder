@@ -37,6 +37,7 @@ class ResidualProcessor:
     def dct_transform(self, residuals):
         transform = dctn(residuals,norm = 'ortho')
         return transform
+    
     def quantization(self, dct):
         quantized = np.divide(dct, self.quant_matrix)
         quantized = np.round(quantized)

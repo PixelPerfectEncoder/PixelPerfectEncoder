@@ -4,6 +4,7 @@ from PixelPerfect.ResidualProcessor import ResidualProcessor
 from bitstring import BitArray, BitStream
 from math import log2, floor
 
+
 class CodecConfig:
     def __init__(
         self,
@@ -16,6 +17,7 @@ class CodecConfig:
         do_dct: bool = False,
         do_quantization: bool = False,
         do_entropy: bool = False,
+        VBSEnable: bool = False,
         FMEEnable: bool = False,
         FastME: bool = False,
     ) -> None:
@@ -28,6 +30,7 @@ class CodecConfig:
         self.do_dct = do_dct
         self.do_quantization = do_quantization
         self.do_entropy = do_entropy
+        self.VBSEnable = VBSEnable
         self.FMEEnable = FMEEnable
         self.FastME = FastME
 
@@ -43,7 +46,9 @@ class Coder:
             self.config.block_size,
         )
         self.residual_processor = ResidualProcessor(
-            self.config.block_size, self.config.quant_level, self.config.approximated_residual_n
+            self.config.block_size,
+            self.config.quant_level,
+            self.config.approximated_residual_n,
         )
         self.bitrate = 0
 
@@ -66,22 +71,29 @@ class Coder:
 
     def create_FME_ref(self):
         x, y = self.previous_frame.shape
-        self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1 ))
+        self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1))
         for i in range(x):
             for j in range(y):
                 self.FME_ref_frame[2 * i, 2 * j] = self.previous_frame.data[i, j]
 
                 # Calculate the average of neighbors and store it in the result array
-                if i < x-1:
-                    self.FME_ref_frame[2 * i + 1, 2 * j] = round(self.previous_frame.data[i, j]/ 2 + self.previous_frame.data[i+1, j]/ 2)
-                if j < y-1:
-                    self.FME_ref_frame[2 * i, 2 * j + 1] = round(self.previous_frame.data[i, j]/ 2 + self.previous_frame.data[i, j+1]/ 2)
-                if i < x-1 and j < y-1:
-                    self.FME_ref_frame[2 * i + 1, 2 * j + 1] = round(self.previous_frame.data[i+1, j+1]/ 2 + self.previous_frame.data[i, j]/ 2)
-    
-    
-     
-    #region Decoding
+                if i < x - 1:
+                    self.FME_ref_frame[2 * i + 1, 2 * j] = round(
+                        self.previous_frame.data[i, j] / 2
+                        + self.previous_frame.data[i + 1, j] / 2
+                    )
+                if j < y - 1:
+                    self.FME_ref_frame[2 * i, 2 * j + 1] = round(
+                        self.previous_frame.data[i, j] / 2
+                        + self.previous_frame.data[i, j + 1] / 2
+                    )
+                if i < x - 1 and j < y - 1:
+                    self.FME_ref_frame[2 * i + 1, 2 * j + 1] = round(
+                        self.previous_frame.data[i + 1, j + 1] / 2
+                        + self.previous_frame.data[i, j] / 2
+                    )
+
+    # region Decoding
     def RLE_decoding(self, sequence):
         decoded = []
         index = 0
@@ -123,7 +135,7 @@ class Coder:
             RLE_coded.append(data.read("se"))
         RLE_decoded = self.RLE_decoding(RLE_coded)
         return RLE_decoded
-    
+
     def decompress_residual(self, residual):
         if self.config.do_entropy:
             residual = self.Entrophy_decoding(residual)
@@ -138,9 +150,10 @@ class Coder:
         if self.config.do_entropy:
             descriptors = self.Entrophy_decoding(descriptors)
         return descriptors
-    #endregion
-    
-    #region Encoding
+
+    # endregion
+
+    # region Encoding
     def cal_entrophy_bitcount(self, sequence):
         sequence = self.RLE_coding(sequence)
         length = 0
@@ -150,7 +163,7 @@ class Coder:
             else:
                 length += 3 + 2 * floor(log2(abs(v)))
         return length
-    
+
     def RLE_coding(self, data):
         sequence = []
         zero_count = 0
@@ -197,7 +210,7 @@ class Coder:
         sequence = self.RLE_coding(sequence)
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
-    
+
     def compress_residual(self, residual):
         if self.config.do_approximated_residual:
             residual = self.residual_processor.approx(residual)
@@ -210,9 +223,11 @@ class Coder:
             residual = self.entrophy_coding(residual)
             self.bitrate += residual.length
         else:
-            self.bitrate += self.cal_entrophy_bitcount(self.diagonalize_matrix(residual))
+            self.bitrate += self.cal_entrophy_bitcount(
+                self.diagonalize_matrix(residual)
+            )
         return residual
-    
+
     def compress_descriptors(self, descriptors):
         if self.config.do_entropy:
             descriptors = self.entrophy_coding(descriptors)
@@ -220,4 +235,5 @@ class Coder:
         else:
             self.bitrate += self.cal_entrophy_bitcount(descriptors)
         return descriptors
-    #endregion
+
+    # endregion

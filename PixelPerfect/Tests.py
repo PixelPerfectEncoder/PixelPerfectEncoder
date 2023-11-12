@@ -49,7 +49,6 @@ def e4_test():
     for i_p in [4,10]:
         config.i_Period = i_p
         for level in [0,1,2,3,4,5,6,7,8,9,10]:
-        # for level in [8,9,10]:
             config.quant_level = level
             encoder = Encoder(height, width, config)
             decoder = Decoder(height, width, config)
@@ -136,5 +135,4 @@ def a2_Fast_test():
         decoded_frame.display()
 def run_tests():
     e4_test()
-
     # play_foreman_test()
