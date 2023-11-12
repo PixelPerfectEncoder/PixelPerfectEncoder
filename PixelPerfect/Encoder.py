@@ -1,13 +1,13 @@
 import numpy as np
 from PixelPerfect.Yuv import YuvBlock, YuvFrame
 from PixelPerfect.Coder import Coder, CodecConfig
-from PixelPerfect.Decoder import Decoder, IntraFrameDecoder
+from PixelPerfect.Decoder import VideoDecoder, IntraFrameDecoder
 
 
 class Encoder(Coder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
-        self.decoder = Decoder(height, width, config)
+        self.decoder = VideoDecoder(height, width, config)
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j

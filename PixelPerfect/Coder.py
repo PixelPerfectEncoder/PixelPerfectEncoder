@@ -17,6 +17,7 @@ class CodecConfig:
         do_dct: bool = False,
         do_quantization: bool = False,
         do_entropy: bool = False,
+        RD_lambda: float = 0,
         VBSEnable: bool = False,
         FMEEnable: bool = False,
         FastME: bool = False,
@@ -30,13 +31,32 @@ class CodecConfig:
         self.do_dct = do_dct
         self.do_quantization = do_quantization
         self.do_entropy = do_entropy
+        self.RD_lambda = RD_lambda
         self.VBSEnable = VBSEnable
         self.FMEEnable = FMEEnable
         self.FastME = FastME
 
-
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
+        conflict = []
+        if config.VBSEnable:
+            conflict.append("VBSEnable")
+        if config.FMEEnable:
+            conflict.append("FMEEnable")
+        if config.FastME:
+            conflict.append("FastME")
+        if len(conflict) > 1:
+            raise Exception(
+                "Error! The following options cannot be enabled at the same time: "
+                + ", ".join(conflict)
+            )
+
+        if config.do_entropy and (not config.do_dct or not config.do_quantization):
+            raise Exception(
+                "Error! Entropy coding can only be enabled when DCT and quantization are enabled"
+            )
+        
+        
         self.frame_seq = 0
         self.config = config
         self.height = height
@@ -51,6 +71,8 @@ class Coder:
             self.config.approximated_residual_n,
         )
         self.bitrate = 0
+
+
 
     def is_p_frame(self):
         if self.config.i_Period == -1:

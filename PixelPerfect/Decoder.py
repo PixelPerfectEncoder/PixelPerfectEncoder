@@ -32,64 +32,77 @@ class IntraFrameDecoder(Coder):
         )
         self.seq += 1
 
+class InterFrameDecoder(Coder):
+    def __init__(self, height, width, previous_frame, config: CodecConfig) -> None:
+        super().__init__(height, width, config)
+        self.previous_frame = previous_frame
+        self.frame = np.zeros(
+            [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
+        )
+        self.block_seq = 0
+        self.last_row_mv, self.last_col_mv = 0, 0
+        self.block_size = self.config.block_size
+        self.row_block_num = self.previous_frame.width // self.block_size
 
-class Decoder(Coder):
+    def process(self, residual, diff_row_mv, diff_col_mv, is_sub_block):
+        row = self.block_seq // self.row_block_num * self.block_size
+        col = self.block_seq % self.row_block_num * self.block_size
+        row_mv, col_mv = diff_row_mv + self.last_row_mv, diff_col_mv + self.last_col_mv
+        self.last_row_mv, self.last_col_mv = row_mv, col_mv
+        residual = self.decompress_residual(residual)
+        if self.config.FMEEnable:
+            ref_row_f = math.floor(row + row_mv / 2)
+            ref_col_f = math.floor(col + col_mv / 2)
+            ref_row_c = math.ceil(row + row_mv / 2)
+            ref_col_c = math.ceil(col + col_mv / 2)
+            ref_blcok = np.round(
+                (
+                    self.previous_frame.data[
+                        ref_row_f : ref_row_f + self.block_size,
+                        ref_col_f : ref_col_f + self.block_size,
+                    ]
+                    / 2
+                    + self.previous_frame.data[
+                        ref_row_c : ref_row_c + self.block_size,
+                        ref_col_c : ref_col_c + self.block_size,
+                    ]
+                    / 2
+                )
+            )
+            reconstructed_block = ref_blcok + residual
+            self.frame[
+                row : row + self.block_size, col : col + self.block_size
+            ] = reconstructed_block
+
+        else:
+            ref_row = row + row_mv
+            ref_col = col + col_mv
+            reconstructed_block = (
+                self.previous_frame.data[
+                    ref_row : ref_row + self.block_size, ref_col : ref_col + self.block_size
+                ]
+                + residual
+            )
+            self.frame[
+                row : row + self.block_size, col : col + self.block_size
+            ] = reconstructed_block
+
+        self.block_seq += 1
+        
+class VideoDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
 
     def process_p_frame(self, compressed_data):
         compressed_residual, compressed_descriptors = compressed_data
         descriptors = self.decompress_descriptors(compressed_descriptors)
-        frame = np.zeros(
-            [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
-        )
-        block_size = self.config.block_size
-        row_block_num = self.previous_frame.width // block_size
-        last_row_mv, last_col_mv = 0, 0
+        inter_decoder = InterFrameDecoder(self.height, self.width, self.previous_frame, self.config)
         for seq, residual in enumerate(compressed_residual):
-            row = seq // row_block_num * block_size
-            col = seq % row_block_num * block_size
-            diff_row_mv, diff_col_mv = descriptors[seq * 2], descriptors[seq * 2 + 1]
-            row_mv, col_mv = diff_row_mv + last_row_mv, diff_col_mv + last_col_mv
-            last_row_mv, last_col_mv = row_mv, col_mv
-            residual = self.decompress_residual(residual)
-            if self.config.FMEEnable:
-                ref_row_f = math.floor(row + row_mv / 2)
-                ref_col_f = math.floor(col + col_mv / 2)
-                ref_row_c = math.ceil(row + row_mv / 2)
-                ref_col_c = math.ceil(col + col_mv / 2)
-                ref_blcok = np.round(
-                    (
-                        self.previous_frame.data[
-                            ref_row_f : ref_row_f + block_size,
-                            ref_col_f : ref_col_f + block_size,
-                        ]
-                        / 2
-                        + self.previous_frame.data[
-                            ref_row_c : ref_row_c + block_size,
-                            ref_col_c : ref_col_c + block_size,
-                        ]
-                        / 2
-                    )
-                )
-                reconstructed_block = ref_blcok + residual
-                frame[
-                    row : row + block_size, col : col + block_size
-                ] = reconstructed_block
-
+            if not self.config.FMEEnable:
+                inter_decoder.process(residual, descriptors[seq * 2], descriptors[seq * 2 + 1], False)
             else:
-                ref_row = row + row_mv
-                ref_col = col + col_mv
-                reconstructed_block = (
-                    self.previous_frame.data[
-                        ref_row : ref_row + block_size, ref_col : ref_col + block_size
-                    ]
-                    + residual
-                )
-                frame[
-                    row : row + block_size, col : col + block_size
-                ] = reconstructed_block
-        frame = np.clip(frame, 0, 255)
+                inter_decoder.process(residual, descriptors[seq * 3], descriptors[seq * 3 + 1], descriptors[seq * 3 + 2] == 1)
+        frame = np.clip(inter_decoder.frame, 0, 255)
         res = YuvFrame(frame, self.config.block_size)
         self.frame_processed(res)
         return res
