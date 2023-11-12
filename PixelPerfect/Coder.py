@@ -17,6 +17,7 @@ class CodecConfig:
         do_quantization: bool = False,
         do_entropy: bool = False,
         FMEEnable: bool = False,
+        FastME: bool = False,
     ) -> None:
         self.block_size = block_size
         self.block_search_offset = block_search_offset
@@ -28,6 +29,7 @@ class CodecConfig:
         self.do_quantization = do_quantization
         self.do_entropy = do_entropy
         self.FMEEnable = FMEEnable
+        self.FastME = FastME
 
 
 class Coder:
@@ -61,6 +63,21 @@ class Coder:
 
     def is_i_frame(self):
         return not self.is_p_frame()
+
+    def create_FME_ref(self):
+        x, y = self.previous_frame.shape
+        self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1 ))
+        for i in range(x):
+            for j in range(y):
+                self.FME_ref_frame[2 * i, 2 * j] = self.previous_frame.data[i, j]
+
+                # Calculate the average of neighbors and store it in the result array
+                if i < x-1:
+                    self.FME_ref_frame[2 * i + 1, 2 * j] = round(self.previous_frame.data[i, j]/ 2 + self.previous_frame.data[i+1, j]/ 2)
+                if j < y-1:
+                    self.FME_ref_frame[2 * i, 2 * j + 1] = round(self.previous_frame.data[i, j]/ 2 + self.previous_frame.data[i, j+1]/ 2)
+                if i < x-1 and j < y-1:
+                    self.FME_ref_frame[2 * i + 1, 2 * j + 1] = round(self.previous_frame.data[i+1, j+1]/ 2 + self.previous_frame.data[i, j]/ 2)
     
     
      

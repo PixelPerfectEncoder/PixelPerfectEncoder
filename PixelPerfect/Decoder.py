@@ -1,6 +1,7 @@
 from PixelPerfect.Yuv import YuvFrame
 from PixelPerfect.Coder import CodecConfig, Coder
 import numpy as np
+import math
 
 class IntraFrameDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
@@ -50,15 +51,26 @@ class Decoder(Coder):
             row_mv, col_mv = diff_row_mv + last_row_mv, diff_col_mv + last_col_mv
             last_row_mv, last_col_mv = row_mv, col_mv
             residual = self.decompress_residual(residual)
-            ref_row = row + row_mv
-            ref_col = col + col_mv
-            reconstructed_block = (
-                self.previous_frame.data[
-                    ref_row : ref_row + block_size, ref_col : ref_col + block_size
-                ]
-                + residual
-            )
-            frame[row : row + block_size, col : col + block_size] = reconstructed_block
+            if self.config.FMEEnable:
+                ref_row_f = math.floor(row  + row_mv/2)
+                ref_col_f = math.floor(col  + col_mv/2)
+                ref_row_c = math.ceil(row + row_mv/2)
+                ref_col_c = math.ceil(col + col_mv/2)
+                ref_blcok = np.round((self.previous_frame.data[ref_row_f: ref_row_f + block_size, ref_col_f: ref_col_f + block_size] / 2 +
+                             self.previous_frame.data[ref_row_c: ref_row_c + block_size, ref_col_c: ref_col_c + block_size] / 2) )
+                reconstructed_block = ( ref_blcok + residual)
+                frame[row: row + block_size, col: col + block_size] = reconstructed_block
+
+            else:
+                ref_row = row + row_mv
+                ref_col = col + col_mv
+                reconstructed_block = (
+                    self.previous_frame.data[
+                        ref_row : ref_row + block_size, ref_col : ref_col + block_size
+                    ]
+                    + residual
+                )
+                frame[row : row + block_size, col : col + block_size] = reconstructed_block
         frame = np.clip(frame, 0, 255)
         res = YuvFrame(frame, self.config.block_size)
         self.frame_processed(res)

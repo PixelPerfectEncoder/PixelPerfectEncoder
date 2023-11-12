@@ -44,8 +44,9 @@ def e4_test():
         do_quantization=True,
         do_entropy=False,
         FMEEnable = False,
+        FastME=False,
     )
-    for i_p in [1,4,10]:
+    for i_p in [4,10]:
         config.i_Period = i_p
         for level in [0,1,2,3,4,5,6,7,8,9,10]:
         # for level in [8,9,10]:
@@ -57,7 +58,7 @@ def e4_test():
                 compressed_data = encoder.process(frame)
                 decoded_frame = decoder.process(compressed_data)
                 decoded_frame.display()
-                psnr_sum += decoded_frame.PSNR(frame)
+                psnr_sum += decoded_frame.get_psnr(frame)
                 if seq == 10:
                     print(psnr_sum)
                     R_D.append((encoder.bitrate, (psnr_sum) / 11))
@@ -76,13 +77,56 @@ def e4_simple_test():
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
-        i_Period=1,
+        i_Period=4,
         quant_level=2,
         approximated_residual_n=3,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
+        FMEEnable=False,
+        FastME=True,
+    )
+    encoder = Encoder(height, width, config)
+    decoder = Decoder(height, width, config)
+    for frame in read_frames(get_media_file_path(filename), height, width, config):
+        compressed_data = encoder.process(frame)
+        decoded_frame = decoder.process(compressed_data)
+        decoded_frame.display()
+def a2_FME_test():
+    filename, height, width = videos["foreman"]
+    config = CodecConfig(
+        block_size=16,
+        block_search_offset=2,
+        i_Period=4,
+        quant_level=2,
+        approximated_residual_n=3,
+        do_approximated_residual=False,
+        do_dct=True,
+        do_quantization=True,
+        do_entropy=False,
+        FMEEnable=True,
+    )
+    encoder = Encoder(height, width, config)
+    decoder = Decoder(height, width, config)
+    for frame in read_frames(get_media_file_path(filename), height, width, config):
+        compressed_data = encoder.process(frame)
+        decoded_frame = decoder.process(compressed_data)
+        decoded_frame.display()
+def a2_Fast_test():
+    filename, height, width = videos["foreman"]
+    config = CodecConfig(
+        block_size=16,
+        block_search_offset=2,
+        i_Period=4,
+        quant_level=4,
+        approximated_residual_n=3,
+        do_approximated_residual=False,
+        do_dct=True,
+        do_quantization=True,
+        do_entropy=False,
+        FMEEnable=False,
+        FastME=True,
     )
     encoder = Encoder(height, width, config)
     decoder = Decoder(height, width, config)
