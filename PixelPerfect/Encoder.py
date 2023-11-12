@@ -80,77 +80,30 @@ class Encoder(Coder):
 
         # Calculate the average and store it
 
-    def get_fast_mae(self, block: YuvBlock, ref_i, ref_j):
-        block_size = block.block_size
-        if (
-            0 <= ref_i <= self.height - block_size
-            and 0 <= ref_j <= self.width - block_size
-        ):
-            reference_block_data = self.previous_frame.data[
-                ref_i : ref_i + block_size, ref_j : ref_j + block_size
-            ]
-            mae = block.get_mae(reference_block_data)
-            return mae
-        else:
-            return float("inf")
-
     def get_inter_data_fast(self, block: YuvBlock, mv_row_pred, mv_col_pred):
-        origin_row = block.row_position
-        origin_col = block.col_position
-        if block.col_position != 0:
-            origin_row += mv_row_pred
-            origin_col += mv_col_pred
-            if origin_col < 0:
-                origin_col = 0
-            elif origin_col >= self.width - block.block_size:
-                origin_col = self.width - block.block_size - 1
-            if origin_row < 0:
-                origin_row = 0
-            elif origin_row >= self.height - block.block_size:
-                origin_row = self.height - block.block_size - 1
-        mae_origin = (float("inf"), origin_row, origin_col)
-        min_mae = (
-            self.get_fast_mae(block, origin_row, origin_col),
-            origin_row,
-            origin_col,
-        )
-        while mae_origin[0] > min_mae[0]:
-            mae_origin = min_mae
-            mae_left = (
-                self.get_fast_mae(block, mae_origin[1], mae_origin[2] - 1),
-                mae_origin[1],
-                mae_origin[2] - 1,
-            )
-            if mae_left[0] < min_mae[0]:
-                min_mae = mae_left
-            mae_right = (
-                self.get_fast_mae(block, mae_origin[1], mae_origin[2] + 1),
-                mae_origin[1],
-                mae_origin[2] + 1,
-            )
-            if mae_right[0] < min_mae[0]:
-                min_mae = mae_right
-            mae_down = (
-                self.get_fast_mae(block, mae_origin[1] + 1, mae_origin[2]),
-                mae_origin[1] + 1,
-                mae_origin[2],
-            )
-            if mae_down[0] < min_mae[0]:
-                min_mae = mae_down
-            mae_up = (
-                self.get_fast_mae(block, mae_origin[1] - 1, mae_origin[2]),
-                mae_origin[1] - 1,
-                mae_origin[2],
-            )
-            if mae_up[0] < min_mae[0]:
-                min_mae = mae_up
-        best_di, best_dj = (
-            mae_origin[1] - block.row_position,
-            mae_origin[2] - block.col_position,
-        )
+        row = min(max(0, block.row_position + mv_row_pred), self.height - block.block_size)
+        col = min(max(0, block.col_position + mv_col_pred), self.width - block.block_size)
+        mae = block.get_mae(self.previous_frame.data[row : row + block.block_size, col : col + block.block_size])
+        search_moves = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        while True:
+            updated = False
+            for drow, dcol in search_moves:
+                new_row = row + drow
+                new_col = col + dcol
+                if new_row < 0 or new_row + block.block_size > self.height or new_col < 0 or new_col + block.block_size > self.width:
+                    continue
+                new_mae = block.get_mae(self.previous_frame.data[new_row : new_row + block.block_size, new_col : new_col + block.block_size])
+                if new_mae < mae:
+                    mae = new_mae
+                    row, col = new_row, new_col
+                    updated = True
+            if not updated:
+                break
+            
+        best_di, best_dj = row - block.row_position, col - block.col_position
         ref_frame = self.previous_frame.data[
-            mae_origin[1] : mae_origin[1] + block.block_size,
-            mae_origin[2] : mae_origin[2] + block.block_size,
+            row : row + block.block_size,
+            col : col + block.block_size,
         ]
         return block.get_residual(ref_frame), best_di, best_dj
 
@@ -207,9 +160,7 @@ class Encoder(Coder):
 
     def get_intra_data(self, vertical_ref, horizontal_ref, block: YuvBlock):
         vertical_residual = block.data.astype(np.int16) - vertical_ref.astype(np.int16)
-        horizontal_residual = block.data.astype(np.int16) - horizontal_ref.astype(
-            np.int16
-        )
+        horizontal_residual = block.data.astype(np.int16) - horizontal_ref.astype(np.int16)
         vertical_mae = np.mean(np.abs(vertical_residual))
         horizontal_mae = np.mean(np.abs(horizontal_residual))
         if vertical_mae < horizontal_mae:
@@ -226,9 +177,7 @@ class Encoder(Coder):
             self.create_FME_ref()
         for block in frame.get_blocks():
             if self.config.FastME:
-                residual, row_mv, col_mv = self.get_inter_data_fast(
-                    block, last_row_mv, last_col_mv
-                )
+                residual, row_mv, col_mv = self.get_inter_data_fast(block, last_row_mv, last_col_mv)
             else:
                 residual, row_mv, col_mv = self.get_inter_data(block)
             residual = self.compress_residual(residual)
