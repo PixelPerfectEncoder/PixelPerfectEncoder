@@ -35,7 +35,7 @@ class ResidualProcessor:
         return self.residual2round[np.abs(residual)] * np.sign(residual)
 
     def dct_transform(self, residuals):
-        transform = dctn(residuals)
+        transform = dctn(residuals,norm = 'ortho')
         return transform
     def quantization(self, dct):
         quantized = np.divide(dct, self.quant_matrix)
@@ -47,7 +47,7 @@ class ResidualProcessor:
         return original
 
     def de_dct(self, data):
-        original = idctn(data);
+        original = idctn(data, norm = 'ortho');
         return original
         # return dct.idct_2d(torch.from_numpy(residual)).numpy()
 
