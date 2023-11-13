@@ -200,7 +200,7 @@ class Encoder(Coder):
             if self.config.VBSEnable:
                 residual_list, row_mv_list, col_mv_list = self.get_sub_blocks_inter_data(block, last_row_mv, last_col_mv)
                 # if sub blocks are better, use sub blocks
-                compressed_residual += residual_list
+                compressed_residual += [self.compress_residual(residual) for residual in residual_list]
                 for seq, row_mv in enumerate(row_mv_list):
                     descriptors.append(row_mv - last_row_mv)
                     descriptors.append(col_mv_list[seq] - last_col_mv)

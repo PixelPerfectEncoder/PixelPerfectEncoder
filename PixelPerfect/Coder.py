@@ -46,6 +46,11 @@ class Coder:
             raise Exception(
                 "Error! Entropy coding can only be enabled when DCT and quantization are enabled"
             )
+        if config.do_quantization and not config.do_dct:
+            raise Exception(
+                "Error! Quantization can only be enabled when DCT is enabled"
+            )
+            
         self.frame_seq = 0
         self.config = config
         self.height = height

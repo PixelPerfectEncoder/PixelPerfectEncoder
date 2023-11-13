@@ -24,10 +24,8 @@ class ResidualProcessor:
         self.approximated_residual_n = approximated_residual_n
         self.init_approx_matrix()
         self.quant_matrix = self.get_quant_matrix(block_size, quant_level)
-        self.sub_block_quant_matrix = self.get_quant_matrix(
-            block_size // 2, max(quant_level - 1, 0)
-        )
-
+        self.sub_block_quant_matrix = self.get_quant_matrix(block_size // 2, max(quant_level - 1, 0))
+        
     def approx(self, residual: np.ndarray) -> np.ndarray:
         return self.residual2round[np.abs(residual)] * np.sign(residual)
 
