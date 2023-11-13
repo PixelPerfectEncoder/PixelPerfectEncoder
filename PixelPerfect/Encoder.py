@@ -1,13 +1,16 @@
 import numpy as np
 from PixelPerfect.Yuv import YuvBlock, YuvFrame
 from PixelPerfect.Coder import Coder, CodecConfig
-from PixelPerfect.Decoder import Decoder, IntraFrameDecoder
+from PixelPerfect.Decoder import VideoDecoder, IntraFrameDecoder, InterFrameDecoder
 
 
-class Encoder(Coder):
-    def __init__(self, height, width, config: CodecConfig):
+class InterFrameEncoder(Coder):
+    def __init__(self, height, width, previous_frame, config: CodecConfig):
         super().__init__(height, width, config)
-        self.decoder = Decoder(height, width, config)
+        self.previous_frame = previous_frame
+        self.inter_decoder = InterFrameDecoder(height, width, previous_frame, config)
+        if self.config.FMEEnable:
+            self.create_FME_ref()
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
@@ -42,6 +45,7 @@ class Encoder(Coder):
             if dj < best_j - block.col_position:
                 return True, mae
         return False, None
+
     def is_better_FME_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
     ) -> bool:
@@ -50,11 +54,11 @@ class Encoder(Coder):
         block_size = block.block_size
         height, width = self.FME_ref_frame.shape
         if (
-            0 <= i <= height - block_size*2 + 1
-            and 0 <= j <= width - block_size*2 +1
+            0 <= i <= height - block_size * 2 + 1
+            and 0 <= j <= width - block_size * 2 + 1
         ):
             reference_block_data = self.FME_ref_frame[
-                i : i + (block_size*2) : 2, j : j + (block_size*2) : 2
+                i : i + (block_size * 2) : 2, j : j + (block_size * 2) : 2
             ]
             mae = block.get_mae(reference_block_data)
             if mae > min_mae:
@@ -77,60 +81,49 @@ class Encoder(Coder):
                 return True, mae
         return False, None
 
+        # Calculate the average and store it
 
-                # Calculate the average and store it
-
-    def get_fast_mae(self,block: YuvBlock, ref_i, ref_j):
+    def get_inter_data_fast_search(self, block: YuvBlock, mv_row_pred, mv_col_pred):
         block_size = block.block_size
-        if (
-                0 <= ref_i <= self.height - block_size
-                and 0 <= ref_j <= self.width - block_size
-        ):
-            reference_block_data = self.previous_frame.data[
-                                   ref_i: ref_i + block_size, ref_j: ref_j + block_size
-                                   ]
-            mae = block.get_mae(reference_block_data)
-            return mae
-        else:
-            return float('inf')
+        row = min(max(0, block.row_position + mv_row_pred), self.height - block_size)
+        col = min(max(0, block.col_position + mv_col_pred), self.width - block_size)
+        mae = block.get_mae(
+            self.previous_frame.data[row : row + block_size, col : col + block_size]
+        )
+        search_moves = [(0, -1), (0, 1), (-1, 0), (1, 0)]
+        while True:
+            updated = False
+            for drow, dcol in search_moves:
+                new_row = row + drow
+                new_col = col + dcol
+                if (
+                    new_row < 0
+                    or new_row + block_size > self.height
+                    or new_col < 0
+                    or new_col + block_size > self.width
+                ):
+                    continue
+                new_mae = block.get_mae(
+                    self.previous_frame.data[
+                        new_row : new_row + block_size, new_col : new_col + block_size
+                    ]
+                )
+                if new_mae < mae:
+                    mae = new_mae
+                    row, col = new_row, new_col
+                    updated = True
+            if not updated:
+                break
 
-    def get_inter_data_fast(self,block: YuvBlock, mv_row_pred, mv_col_pred):
-        origin_row = block.row_position
-        origin_col = block.col_position
-        if block.col_position != 0:
-            origin_row+=mv_row_pred
-            origin_col+=mv_col_pred
-            if origin_col < 0:
-                origin_col = 0
-            elif origin_col >= self.width - block.block_size:
-                origin_col = self.width - block.block_size -1
-            if origin_row < 0:
-                origin_row = 0
-            elif origin_row >= self.height - block.block_size:
-                origin_row = self.height - block.block_size - 1
-        mae_origin = (float("inf"), origin_row, origin_col)
-        min_mae = (self.get_fast_mae(block,origin_row,origin_col), origin_row, origin_col)
-        while mae_origin[0] > min_mae[0]:
-            mae_origin = min_mae
-            mae_left = (self.get_fast_mae(block,mae_origin[1],mae_origin[2] - 1), mae_origin[1], mae_origin[2] - 1)
-            if mae_left[0] < min_mae[0]:
-                min_mae = mae_left
-            mae_right = (self.get_fast_mae(block,mae_origin[1],mae_origin[2] + 1), mae_origin[1], mae_origin[2] + 1)
-            if mae_right[0] < min_mae[0]:
-                min_mae = mae_right
-            mae_down = (self.get_fast_mae(block,mae_origin[1] + 1,mae_origin[2]), mae_origin[1] + 1, mae_origin[2])
-            if mae_down[0] < min_mae[0]:
-                min_mae = mae_down
-            mae_up = (self.get_fast_mae(block,mae_origin[1] - 1,mae_origin[2]), mae_origin[1] - 1, mae_origin[2])
-            if mae_up[0] < min_mae[0]:
-                min_mae = mae_up
-        best_di, best_dj = mae_origin[1] - block.row_position, mae_origin[2] - block.col_position
-        ref_frame = self.previous_frame.data\
-                                      [mae_origin[1]: mae_origin[1] + block.block_size, mae_origin[2]: mae_origin[2] + block.block_size]
-        return block.get_residual( ref_frame ), best_di, best_dj
+        best_di, best_dj = row - block.row_position, col - block.col_position
+        ref_frame = self.previous_frame.data[
+            row : row + block_size,
+            col : col + block_size,
+        ]
+        return block.get_residual(ref_frame), best_di, best_dj
 
-
-    def get_inter_data(self, block: YuvBlock):
+    def get_inter_data_normal_search(self, block: YuvBlock):
+        block_size = block.block_size
         min_mae = float("inf")
         best_i, best_j = None, None
         best_di, best_dj = None, None
@@ -143,13 +136,15 @@ class Encoder(Coder):
                     )
                     if is_better_match:
                         min_mae = mae
-                        best_i, best_j = block.row_position * 2  + di, block.col_position *2 + dj
+                        best_i, best_j = (
+                            block.row_position * 2 + di,
+                            block.col_position * 2 + dj,
+                        )
                         best_di, best_dj = di, dj
-            block_size = self.config.block_size
-            self.total_mae += min_mae
             reference_block_data = self.FME_ref_frame[
-                                   best_i: best_i + (block_size * 2): 2, best_j: best_j + (block_size * 2): 2
-                                   ]
+                best_i : best_i + (block_size * 2) : 2,
+                best_j : best_j + (block_size * 2) : 2,
+            ]
             return block.get_residual(reference_block_data), best_di, best_dj
         else:
             offset = self.config.block_search_offset
@@ -160,14 +155,93 @@ class Encoder(Coder):
                     )
                     if is_better_match:
                         min_mae = mae
-                        best_i, best_j = block.row_position + di, block.col_position + dj
+                        best_i, best_j = (
+                            block.row_position + di,
+                            block.col_position + dj,
+                        )
                         best_di, best_dj = di, dj
-        block_size = self.config.block_size
-        self.total_mae += min_mae
-        return block.get_residual(self.previous_frame.data[best_i : best_i + block_size , best_j : best_j + block_size ]), best_di, best_dj
+        return (
+            block.get_residual(
+                self.previous_frame.data[
+                    best_i : best_i + block_size, best_j : best_j + block_size
+                ]
+            ),
+            best_di,
+            best_dj,
+        )
+
+    def get_inter_data(self, block: YuvBlock, last_row_mv, last_col_mv):
+        if self.config.FastME:
+            return self.get_inter_data_fast_search(block, last_row_mv, last_col_mv)
+        else:
+            return self.get_inter_data_normal_search(block)
+
+    def get_sub_blocks_inter_data(self, block: YuvBlock, last_row_mv, last_col_mv):
+        residual_list = []
+        row_mv_list = []
+        col_mv_list = []
+        for sub_block in block.get_sub_blocks():
+            residual, row_mv, col_mv = self.get_inter_data(
+                sub_block, last_row_mv, last_col_mv
+            )
+            residual_list.append(residual)
+            row_mv_list.append(row_mv)
+            col_mv_list.append(col_mv)
+        return residual_list, row_mv_list, col_mv_list
+
+    def process(
+        self, block: YuvBlock, block_seq: int, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool
+    ):
+        compressed_residual = []
+        descriptors = []
+        total_bitrate = 0
+        if use_sub_blocks:
+            residual_list, row_mv_list, col_mv_list = self.get_sub_blocks_inter_data(
+                block, last_row_mv, last_col_mv
+            )
+            total_sub_blocks = len(residual_list)
+            for sub_block_seq in range(total_sub_blocks):
+                residual, bitrate = self.compress_residual(residual_list[sub_block_seq])
+                compressed_residual.append(residual)
+                total_bitrate += bitrate
+                descriptors.append(row_mv_list[sub_block_seq] - last_row_mv)
+                descriptors.append(col_mv_list[sub_block_seq] - last_col_mv)
+                descriptors.append(1)
+                last_row_mv, last_col_mv = (
+                    row_mv_list[sub_block_seq],
+                    col_mv_list[sub_block_seq],
+                )
+                self.inter_decoder.process(block_seq, sub_block_seq, residual, row_mv_list[sub_block_seq], col_mv_list[sub_block_seq], is_sub_block=True)    
+        else:
+            residual, row_mv, col_mv = self.get_inter_data(
+                block, last_row_mv, last_col_mv
+            )
+            residual, bitrate = self.compress_residual(residual)
+            use_sub_blocks = False
+            compressed_residual.append(residual)
+            descriptors.append(row_mv - last_row_mv)
+            descriptors.append(col_mv - last_col_mv)
+            if self.config.VBSEnable:
+                descriptors.append(0)
+            last_row_mv, last_col_mv = row_mv, col_mv
+            self.inter_decoder.process(block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
+
+        reconstructed_block = self.inter_decoder.frame[
+            block.row_position : block.row_position + block.block_size,
+            block.col_position : block.col_position + block.block_size,
+        ]
+        distortion = block.get_mae(reconstructed_block)
+        total_bitrate += len(descriptors)
+        return compressed_residual, descriptors, distortion, total_bitrate, last_row_mv, last_col_mv
+
+
+class VideoEncoder(Coder):
+    def __init__(self, height, width, config: CodecConfig):
+        super().__init__(height, width, config)
+        self.decoder = VideoDecoder(height, width, config)
 
     def get_intra_data(self, vertical_ref, horizontal_ref, block: YuvBlock):
-        vertical_residual = block.data.astype(np.int16) - vertical_ref.astype(np.int16)  
+        vertical_residual = block.data.astype(np.int16) - vertical_ref.astype(np.int16)
         horizontal_residual = block.data.astype(np.int16) - horizontal_ref.astype(np.int16)
         vertical_mae = np.mean(np.abs(vertical_residual))
         horizontal_mae = np.mean(np.abs(horizontal_residual))
@@ -175,30 +249,56 @@ class Encoder(Coder):
             return vertical_residual, 0
         else:
             return horizontal_residual, 1
-                    
+
+    def calculate_RDO(self, bitrate, distortion):
+        return distortion + self.config.RD_lambda * bitrate
+
     def process_p_frame(self, frame: YuvFrame):
         compressed_residual = []
         descriptors = []
-        self.total_mae = 0
         last_row_mv, last_col_mv = 0, 0
-        if self.config.FMEEnable:
-            self.create_FME_ref()
-        for block in frame.get_blocks():
-            if self.config.FastME:
-                residual, row_mv, col_mv = self.get_inter_data_fast(block, last_row_mv, last_col_mv)
+        for block_seq, block in enumerate(frame.get_blocks()):
+            frame_encoder = InterFrameEncoder(
+                self.height, self.width, self.previous_frame, self.config
+            )
+            (
+                normal_residual,
+                normal_descriptors,
+                normal_distortion,
+                normal_bitrate,
+                normal_last_row_mv,
+                normal_last_col_mv,
+            ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False)
+            use_sub_blocks = False
+            if self.config.VBSEnable:
+                (
+                    sub_blocks_residual,
+                    sub_blocks_descriptors,
+                    sub_blocks_distortion,
+                    sub_blocks_bitrate,
+                    sub_blocks_last_row_mv,
+                    sub_blocks_last_col_mv,
+                ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=True)
+                use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
+
+            if use_sub_blocks:
+                compressed_residual += sub_blocks_residual
+                descriptors += sub_blocks_descriptors
+                self.bitrate += sub_blocks_bitrate
+                last_row_mv, last_col_mv = sub_blocks_last_row_mv, sub_blocks_last_col_mv
             else:
-                residual, row_mv, col_mv = self.get_inter_data(block)
-            residual = self.compress_residual(residual)
-            compressed_residual.append(residual)
-            descriptors.append(row_mv - last_row_mv)
-            descriptors.append(col_mv - last_col_mv)
-            last_row_mv, last_col_mv = row_mv, col_mv
-        compressed_data = (compressed_residual, self.compress_descriptors(descriptors))
+                compressed_residual += normal_residual
+                descriptors += normal_descriptors
+                self.bitrate += normal_bitrate
+                last_row_mv, last_col_mv = normal_last_row_mv, normal_last_col_mv
+
+        compressed_descriptors, bitrate = self.compress_descriptors(descriptors)
+        self.bitrate += bitrate
+        compressed_data = (compressed_residual, compressed_descriptors)
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
-        self.average_mae = self.total_mae / len(compressed_residual)
         return compressed_data
-    
+
     def process_i_frame(self, frame: YuvFrame):
         compressed_residual = []
         descriptors = []
@@ -210,23 +310,30 @@ class Encoder(Coder):
                     block.row_position - 1 : block.row_position,
                     block.col_position : block.col_position + block.block_size,
                 ]
-                vertical_ref = np.repeat(vertical_ref_row, repeats=block.block_size, axis=0)
-                
+                vertical_ref = np.repeat(
+                    vertical_ref_row, repeats=block.block_size, axis=0
+                )
+
             horizontal_ref = np.full([block.block_size, block.block_size], 128)
             if block.col_position != 0:
                 horizontal_ref_col = intra_decoder.frame[
                     block.row_position : block.row_position + block.block_size,
                     block.col_position - 1 : block.col_position,
                 ]
-                horizontal_ref = np.repeat(horizontal_ref_col, repeats=block.block_size, axis=1)
-                
+                horizontal_ref = np.repeat(
+                    horizontal_ref_col, repeats=block.block_size, axis=1
+                )
+
             residual, mode = self.get_intra_data(vertical_ref, horizontal_ref, block)
-            residual = self.compress_residual(residual)
+            residual, bitrate = self.compress_residual(residual)
+            self.bitrate += bitrate
             intra_decoder.process(residual, mode)
             compressed_residual.append(residual)
             descriptors.append(mode)
-            
-        compressed_data = (compressed_residual, self.compress_descriptors(descriptors))
+
+        compressed_descriptors, bitrate = self.compress_descriptors(descriptors)
+        self.bitrate += bitrate
+        compressed_data = (compressed_residual, compressed_descriptors)
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
         return compressed_data

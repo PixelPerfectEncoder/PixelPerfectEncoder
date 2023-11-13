@@ -1,5 +1,5 @@
-from PixelPerfect.Decoder import Decoder
-from PixelPerfect.Encoder import Encoder, CodecConfig
+from PixelPerfect.Decoder import VideoDecoder
+from PixelPerfect.Encoder import VideoEncoder, CodecConfig
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 from PIL import Image
@@ -25,8 +25,8 @@ def e3_1_report_run_once(i, r, n, total_frames=10):
         do_quantization=False,
         do_entropy=False,
     )
-    encoder = Encoder(height, width, config)
-    decoder = Decoder(height, width, config)
+    encoder = VideoEncoder(height, width, config)
+    decoder = VideoDecoder(height, width, config)
     psnr = []
     mae = []
     for seq, frame in enumerate(
@@ -171,8 +171,8 @@ def e3_2_report():
         do_quantization=False,
         do_entropy=False,
     )
-    encoder = Encoder(height, width, config)
-    decoder = Decoder(height, width, config)
+    encoder = VideoEncoder(height, width, config)
+    decoder = VideoDecoder(height, width, config)
     motion_vectors = list()
     reconstructed_frames = []
     for seq, frame in enumerate(
@@ -227,7 +227,7 @@ def e3_3_report():
             do_quantization=False,
             do_entropy=False,
         )
-        encoder = Encoder(height, width, config)
+        encoder = VideoEncoder(height, width, config)
         previous_frame = None
         for seq, frame in enumerate(
             read_frames(get_media_file_path(filename), height, width, config)
