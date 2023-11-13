@@ -1,6 +1,6 @@
 import numpy as np
 from PixelPerfect.Yuv import YuvBlock, YuvFrame
-from PixelPerfect.Coder import Coder, CodecConfig
+from PixelPerfect.Coder import Coder, CodecConfig, VideoCoder
 from PixelPerfect.Decoder import VideoDecoder, IntraFrameDecoder, InterFrameDecoder
 
 
@@ -19,8 +19,8 @@ class InterFrameEncoder(Coder):
         j = block.col_position + dj
         block_size = block.block_size
         if (
-            0 <= i <= self.previous_frame.height - block_size
-            and 0 <= j <= self.previous_frame.width - block_size
+            0 <= i <= self.padded_height - block_size
+            and 0 <= j <= self.padded_width - block_size
         ):
             reference_block_data = self.previous_frame.data[
                 i : i + block_size, j : j + block_size
@@ -175,39 +175,21 @@ class InterFrameEncoder(Coder):
         else:
             return self.get_inter_data_normal_search(block)
 
-    def get_sub_blocks_inter_data(self, block: YuvBlock, last_row_mv, last_col_mv):
-        residual_list = []
-        row_mv_list = []
-        col_mv_list = []
-        for sub_block in block.get_sub_blocks():
-            residual, row_mv, col_mv = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
-            last_row_mv, last_col_mv = row_mv, col_mv
-            residual_list.append(residual)
-            row_mv_list.append(row_mv)
-            col_mv_list.append(col_mv)
-        return residual_list, row_mv_list, col_mv_list
-
     def process(self, block: YuvBlock, block_seq: int, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool):
         compressed_residual = []
         descriptors = []
         total_bitrate = 0
         if use_sub_blocks:
-            residual_list, row_mv_list, col_mv_list = self.get_sub_blocks_inter_data(
-                block, last_row_mv, last_col_mv
-            )
-            total_sub_blocks = len(residual_list)
-            for sub_block_seq in range(total_sub_blocks):
-                residual, bitrate = self.compress_residual(residual_list[sub_block_seq])
+            for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
+                residual, row_mv, col_mv = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
+                residual, bitrate = self.compress_residual(residual)
                 compressed_residual.append(residual)
                 total_bitrate += bitrate
-                descriptors.append(row_mv_list[sub_block_seq] - last_row_mv)
-                descriptors.append(col_mv_list[sub_block_seq] - last_col_mv)
+                descriptors.append(row_mv - last_row_mv)
+                descriptors.append(col_mv - last_col_mv)
                 descriptors.append(1)
-                last_row_mv, last_col_mv = (
-                    row_mv_list[sub_block_seq],
-                    col_mv_list[sub_block_seq],
-                )
-                self.inter_decoder.process(block_seq, sub_block_seq, residual, row_mv_list[sub_block_seq], col_mv_list[sub_block_seq], is_sub_block=True)    
+                last_row_mv, last_col_mv = row_mv, col_mv
+                self.inter_decoder.process(block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block=True)    
         else:
             residual, row_mv, col_mv = self.get_inter_data(
                 block, last_row_mv, last_col_mv
@@ -231,12 +213,31 @@ class InterFrameEncoder(Coder):
         return compressed_residual, descriptors, distortion, total_bitrate, last_row_mv, last_col_mv
 
 
-class VideoEncoder(Coder):
-    def __init__(self, height, width, config: CodecConfig):
+class IntraFrameEncoder(Coder):
+    def __init__(self, height, width, config: CodecConfig, current_frame):
         super().__init__(height, width, config)
-        self.decoder = VideoDecoder(height, width, config)
-
-    def get_intra_data(self, vertical_ref, horizontal_ref, block: YuvBlock):
+        self.frame = current_frame
+        self.intra_decoder = IntraFrameDecoder(height, width, config)
+            
+    def get_intra_data(self, block: YuvBlock):
+        vertical_ref = np.full([block.block_size, block.block_size], 128)
+        if block.row_position != 0:
+            vertical_ref_row = self.intra_decoder.frame[
+                block.row_position - 1 : block.row_position,
+                block.col_position : block.col_position + block.block_size,
+            ]
+            vertical_ref = np.repeat(
+                vertical_ref_row, repeats=block.block_size, axis=0
+            )
+        horizontal_ref = np.full([block.block_size, block.block_size], 128)
+        if block.col_position != 0:
+            horizontal_ref_col = self.intra_decoder.frame[
+                block.row_position : block.row_position + block.block_size,
+                block.col_position - 1 : block.col_position,
+            ]
+            horizontal_ref = np.repeat(
+                horizontal_ref_col, repeats=block.block_size, axis=1
+            )
         vertical_residual = block.data.astype(np.int16) - vertical_ref.astype(np.int16)
         horizontal_residual = block.data.astype(np.int16) - horizontal_ref.astype(np.int16)
         vertical_mae = np.mean(np.abs(vertical_residual))
@@ -246,6 +247,44 @@ class VideoEncoder(Coder):
         else:
             return horizontal_residual, 1
 
+    def process(self, block: YuvBlock, block_seq: int, use_sub_blocks: bool):
+        compressed_residual = []
+        descriptors = []
+        total_bitrate = 0
+        if use_sub_blocks:
+            for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
+                residual, mode = self.get_intra_data(sub_block)
+                residual, bitrate = self.compress_residual(residual)
+                total_bitrate += bitrate
+                self.intra_decoder.process(block_seq, sub_block_seq, residual, mode, True)
+                compressed_residual.append(residual)
+                descriptors.append(mode)
+                descriptors.append(1)
+        else:
+            residual, mode = self.get_intra_data(block)
+            residual, bitrate = self.compress_residual(residual)
+            total_bitrate += bitrate
+            self.intra_decoder.process(block_seq, 0, residual, mode, False)
+            compressed_residual.append(residual)
+            descriptors.append(mode)
+            if self.config.VBSEnable:
+                descriptors.append(0)
+            
+        reconstructed_block = self.intra_decoder.frame[
+            block.row_position : block.row_position + block.block_size,
+            block.col_position : block.col_position + block.block_size,
+        ]
+        distortion = block.get_SAD(reconstructed_block)
+        total_bitrate += len(descriptors)
+        return compressed_residual, descriptors, distortion, total_bitrate
+
+
+class VideoEncoder(VideoCoder):
+    def __init__(self, height, width, config: CodecConfig):
+        super().__init__(height, width, config)
+        self.decoder = VideoDecoder(height, width, config)
+
+
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate
 
@@ -253,10 +292,8 @@ class VideoEncoder(Coder):
         compressed_residual = []
         descriptors = []
         last_row_mv, last_col_mv = 0, 0
+        frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frame, self.config)
         for block_seq, block in enumerate(frame.get_blocks()):
-            frame_encoder = InterFrameEncoder(
-                self.height, self.width, self.previous_frame, self.config
-            )
             (
                 normal_residual,
                 normal_descriptors,
@@ -265,8 +302,8 @@ class VideoEncoder(Coder):
                 normal_last_row_mv,
                 normal_last_col_mv,
             ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False)
-            use_sub_blocks = False
             # print(f"normal_distortion: {normal_distortion}, normal_bitrate: {normal_bitrate}")
+            use_sub_blocks = False
             if self.config.VBSEnable:
                 (
                     sub_blocks_residual,
@@ -291,8 +328,7 @@ class VideoEncoder(Coder):
                 self.bitrate += normal_bitrate
                 last_row_mv, last_col_mv = normal_last_row_mv, normal_last_col_mv
 
-        compressed_descriptors, bitrate = self.compress_descriptors(descriptors)
-        self.bitrate += bitrate
+        compressed_descriptors, _ = self.compress_descriptors(descriptors)
         compressed_data = (compressed_residual, compressed_descriptors)
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
@@ -301,37 +337,37 @@ class VideoEncoder(Coder):
     def process_i_frame(self, frame: YuvFrame):
         compressed_residual = []
         descriptors = []
-        intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
-        for block in frame.get_blocks():
-            vertical_ref = np.full([block.block_size, block.block_size], 128)
-            if block.row_position != 0:
-                vertical_ref_row = intra_decoder.frame[
-                    block.row_position - 1 : block.row_position,
-                    block.col_position : block.col_position + block.block_size,
-                ]
-                vertical_ref = np.repeat(
-                    vertical_ref_row, repeats=block.block_size, axis=0
-                )
+        frame_encoder = IntraFrameEncoder(self.height, self.width, self.config, frame.data)
+        for block_seq, block in enumerate(frame.get_blocks()):
+            (
+                normal_residual,
+                normal_descriptors,
+                normal_distortion,
+                normal_bitrate,
+            ) = frame_encoder.process(block, block_seq, use_sub_blocks=False)
+            # print(f"normal_distortion: {normal_distortion}, normal_bitrate: {normal_bitrate}")
+            use_sub_blocks = False
 
-            horizontal_ref = np.full([block.block_size, block.block_size], 128)
-            if block.col_position != 0:
-                horizontal_ref_col = intra_decoder.frame[
-                    block.row_position : block.row_position + block.block_size,
-                    block.col_position - 1 : block.col_position,
-                ]
-                horizontal_ref = np.repeat(
-                    horizontal_ref_col, repeats=block.block_size, axis=1
-                )
-
-            residual, mode = self.get_intra_data(vertical_ref, horizontal_ref, block)
-            residual, bitrate = self.compress_residual(residual)
-            self.bitrate += bitrate
-            intra_decoder.process(residual, mode)
-            compressed_residual.append(residual)
-            descriptors.append(mode)
-
-        compressed_descriptors, bitrate = self.compress_descriptors(descriptors)
-        self.bitrate += bitrate
+            if self.config.VBSEnable:
+                (
+                    sub_blocks_residual,
+                    sub_blocks_descriptors,
+                    sub_blocks_distortion,
+                    sub_blocks_bitrate,
+                ) = frame_encoder.process(block, block_seq, use_sub_blocks=True)
+                # print(f"sub_blocks_distortion: {sub_blocks_distortion}, sub_blocks_bitrate: {sub_blocks_bitrate}")
+                use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
+            # print(use_sub_blocks)
+            if use_sub_blocks:
+                compressed_residual += sub_blocks_residual
+                descriptors += sub_blocks_descriptors
+                self.bitrate += sub_blocks_bitrate
+            else:
+                compressed_residual += normal_residual
+                descriptors += normal_descriptors
+                self.bitrate += normal_bitrate
+            
+        compressed_descriptors, _ = self.compress_descriptors(descriptors)
         compressed_data = (compressed_residual, compressed_descriptors)
         decoded_frame = self.decoder.process(compressed_data)
         self.frame_processed(decoded_frame)

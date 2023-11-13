@@ -1,5 +1,5 @@
 from PixelPerfect.Yuv import YuvFrame
-from PixelPerfect.Coder import CodecConfig, Coder
+from PixelPerfect.Coder import CodecConfig, Coder, VideoCoder
 import numpy as np
 import math
 
@@ -7,16 +7,15 @@ import math
 class IntraFrameDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
-        self.frame = np.zeros(
-            [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
-        )
-        self.seq = 0
+        self.frame = np.zeros([self.padded_height, self.padded_width], dtype=np.uint8)
 
-    def process(self, residual, mode):
-        block_size = self.config.block_size
-        row_block_num = self.previous_frame.width // block_size
-        row = self.seq // row_block_num * block_size
-        col = self.seq % row_block_num * block_size
+    # this function should be idempotent
+    def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block):
+        row, col = self.get_position_by_seq(block_seq, sub_block_seq)
+        if is_sub_block:
+            block_size = self.config.sub_block_size
+        else:
+            block_size = self.config.block_size
         residual = self.decompress_residual(residual, block_size)
         ref_block = np.full([block_size, block_size], 128)
         if mode == 0:  # vertical
@@ -27,28 +26,19 @@ class IntraFrameDecoder(Coder):
             if col != 0:
                 ref_col = self.frame[row : row + block_size, col - 1 : col]
                 ref_block = np.repeat(ref_col, repeats=block_size, axis=1)
-        self.frame[row : row + block_size, col : col + block_size] = (
-            residual + ref_block
-        )
-        self.seq += 1
+        self.frame[row : row + block_size, col : col + block_size] = residual + ref_block
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frame, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.previous_frame = previous_frame
-        self.frame = np.zeros(
-            [self.previous_frame.height, self.previous_frame.width], dtype=np.uint8
-        )
-        self.row_block_num = self.previous_frame.width // self.config.block_size
-
+        self.frame = np.zeros([self.padded_height, self.padded_width], dtype=np.uint8)
+        
     # this function should be idempotent
     def process(self, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block):        
-        row = block_seq // self.row_block_num * self.config.block_size
-        col = block_seq % self.row_block_num * self.config.block_size
+        row, col = self.get_position_by_seq(block_seq, sub_block_seq)
         if is_sub_block:
-            block_size = self.config.block_size // 2
-            row += (sub_block_seq // 2) * block_size
-            col += (sub_block_seq % 2) * block_size
+            block_size = self.config.sub_block_size
         else:
             block_size = self.config.block_size
         residual = self.decompress_residual(residual, block_size)
@@ -75,7 +65,6 @@ class InterFrameDecoder(Coder):
             self.frame[
                 row : row + block_size, col : col + block_size
             ] = reconstructed_block
-
         else:
             ref_row = row + row_mv
             ref_col = col + col_mv
@@ -89,7 +78,7 @@ class InterFrameDecoder(Coder):
                 row : row + block_size, col : col + block_size
             ] = reconstructed_block
         
-class VideoDecoder(Coder):
+class VideoDecoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
 
@@ -127,8 +116,23 @@ class VideoDecoder(Coder):
         compressed_residual, compressed_descriptors = compressed_data
         descriptors = self.decompress_descriptors(compressed_descriptors)
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
+        block_seq = 0
+        sub_block_seq = 0
         for seq, residual in enumerate(compressed_residual):
-            intra_decoder.process(residual, descriptors[seq])
+            if not self.config.VBSEnable:
+                intra_decoder.process(block_seq, 0, residual, descriptors[seq], False)
+                block_seq += 1
+            else:
+                is_sub_block = descriptors[seq * 2 + 1] == 1
+                intra_decoder.process(block_seq, sub_block_seq, residual, descriptors[seq * 2], is_sub_block)
+                if is_sub_block:
+                    sub_block_seq += 1
+                    if sub_block_seq == 4:
+                        sub_block_seq = 0
+                        block_seq += 1
+                else:
+                    block_seq += 1
+                
         frame = intra_decoder.frame
         frame = np.clip(frame, 0, 255)
         res = YuvFrame(frame, self.config.block_size)

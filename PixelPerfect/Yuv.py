@@ -34,20 +34,30 @@ class YuvBlock:
                 )
 
 class YuvFrame:
+    @staticmethod
+    def get_pad_size(height, width, block_size):
+        pad_height = (
+            block_size - (height % block_size)
+            if height % block_size != 0
+            else 0
+        )
+        pad_width = (
+            block_size - (width % block_size)
+            if width % block_size != 0
+            else 0
+        )
+        return pad_height, pad_width
+    
+    @staticmethod
+    def get_padded_size(height, width, block_size):
+        pad_height, pad_width = YuvFrame.get_pad_size(height, width, block_size)
+        return height + pad_height, width + pad_width
+
     def __init__(self, data, block_size) -> None:
         self.data = data
         self.shape = data.shape
         self.block_size = block_size
-        pad_height = (
-            block_size - (self.shape[0] % block_size)
-            if self.shape[0] % block_size != 0
-            else 0
-        )
-        pad_width = (
-            block_size - (self.shape[1] % block_size)
-            if self.shape[1] % block_size != 0
-            else 0
-        )
+        pad_height, pad_width = YuvFrame.get_pad_size(*self.shape, block_size)
         self.padded_frame = np.pad(
             self.data,
             ((0, pad_height), (0, pad_width)),
