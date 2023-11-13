@@ -13,6 +13,9 @@ class YuvBlock:
     def get_mae(self, reference_data: np.ndarray) -> float:
         return np.mean(np.abs(self.data.astype(np.int16) - reference_data.astype(np.int16)))
 
+    def get_SAD(self, reference_data: np.ndarray) -> float:
+        return np.sum(np.abs(self.data.astype(np.int16) - reference_data.astype(np.int16)))
+
     def get_residual(self, reference_data: np.ndarray) -> np.ndarray:
         return self.data.astype(np.int16) - reference_data.astype(np.int16)
 

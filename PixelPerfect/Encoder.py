@@ -30,18 +30,17 @@ class InterFrameEncoder(Coder):
                 return False, None
             if mae < min_mae:
                 return True, mae
-            if abs(di) + abs(dj) > abs(best_i - block.row_position) + abs(
-                best_j - block.col_position
-            ):
+            # if mae is equal, we need to compare the distance
+            if abs(di) + abs(dj) > abs(best_i - block.row_position) + abs(best_j - block.col_position):
                 return False, None
-            if abs(di) + abs(dj) < abs(best_i - block.row_position) + abs(
-                best_j - block.col_position
-            ):
+            if abs(di) + abs(dj) < abs(best_i - block.row_position) + abs(best_j - block.col_position):
                 return True, mae
+            # if distance is equal, we prefer the smaller di
             if di > best_i - block.row_position:
                 return False, None
             if di < best_i - block.row_position:
                 return True, mae
+            # if di is equal, we prefer the smaller dj
             if dj < best_j - block.col_position:
                 return True, mae
         return False, None
@@ -181,17 +180,14 @@ class InterFrameEncoder(Coder):
         row_mv_list = []
         col_mv_list = []
         for sub_block in block.get_sub_blocks():
-            residual, row_mv, col_mv = self.get_inter_data(
-                sub_block, last_row_mv, last_col_mv
-            )
+            residual, row_mv, col_mv = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
+            last_row_mv, last_col_mv = row_mv, col_mv
             residual_list.append(residual)
             row_mv_list.append(row_mv)
             col_mv_list.append(col_mv)
         return residual_list, row_mv_list, col_mv_list
 
-    def process(
-        self, block: YuvBlock, block_seq: int, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool
-    ):
+    def process(self, block: YuvBlock, block_seq: int, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool):
         compressed_residual = []
         descriptors = []
         total_bitrate = 0
@@ -217,6 +213,7 @@ class InterFrameEncoder(Coder):
                 block, last_row_mv, last_col_mv
             )
             residual, bitrate = self.compress_residual(residual)
+            total_bitrate += bitrate
             use_sub_blocks = False
             compressed_residual.append(residual)
             descriptors.append(row_mv - last_row_mv)
@@ -225,12 +222,11 @@ class InterFrameEncoder(Coder):
                 descriptors.append(0)
             last_row_mv, last_col_mv = row_mv, col_mv
             self.inter_decoder.process(block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
-
         reconstructed_block = self.inter_decoder.frame[
             block.row_position : block.row_position + block.block_size,
             block.col_position : block.col_position + block.block_size,
         ]
-        distortion = block.get_mae(reconstructed_block)
+        distortion = block.get_SAD(reconstructed_block)
         total_bitrate += len(descriptors)
         return compressed_residual, descriptors, distortion, total_bitrate, last_row_mv, last_col_mv
 
@@ -270,6 +266,7 @@ class VideoEncoder(Coder):
                 normal_last_col_mv,
             ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False)
             use_sub_blocks = False
+            # print(f"normal_distortion: {normal_distortion}, normal_bitrate: {normal_bitrate}")
             if self.config.VBSEnable:
                 (
                     sub_blocks_residual,
@@ -279,7 +276,9 @@ class VideoEncoder(Coder):
                     sub_blocks_last_row_mv,
                     sub_blocks_last_col_mv,
                 ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=True)
+                # print(f"sub_blocks_distortion: {sub_blocks_distortion}, sub_blocks_bitrate: {sub_blocks_bitrate}")
                 use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
+            # print(use_sub_blocks)
 
             if use_sub_blocks:
                 compressed_residual += sub_blocks_residual
