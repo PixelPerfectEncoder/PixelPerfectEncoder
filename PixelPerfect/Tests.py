@@ -30,49 +30,6 @@ def e3_test():
         decoded_frame.display()
 
 
-def e4_test():
-    filename, height, width = videos["foreman"]
-    R_D = []
-    config = CodecConfig(
-        block_size=16,
-        block_search_offset=2,
-        i_Period=1,
-        quant_level=0,
-        approximated_residual_n=2,
-        do_approximated_residual=False,
-        do_dct=True,
-        do_quantization=True,
-        do_entropy=False,
-        RD_lambda = 0,
-        VBSEnable=True,
-        FMEEnable=False,
-        FastME=False,
-    )
-    for i_p in [4, 10]:
-        config.i_Period = i_p
-        for level in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
-            config.quant_level = level
-            encoder = VideoEncoder(height, width, config)
-            decoder = VideoDecoder(height, width, config)
-            psnr_sum = 0
-            for seq, frame in enumerate(
-                read_frames(get_media_file_path(filename), height, width, config)
-            ):
-                compressed_data = encoder.process(frame)
-                decoded_frame = decoder.process(compressed_data)
-                decoded_frame.display()
-                psnr_sum += decoded_frame.get_psnr(frame)
-                if seq == 10:
-                    print(psnr_sum)
-                    R_D.append((encoder.bitrate, (psnr_sum) / 11))
-                    break
-        R_D.sort()
-        print(R_D)
-        x = [R_D[i][0] for i in range(11)]
-        y = [R_D[i][1] for i in range(11)]
-        R_D = []
-        plt.plot(x, y, label="i_period=" + str(i_p), linewidth=0.5)
-    plt.show()
 
 
 def e4_simple_test():
@@ -142,6 +99,49 @@ def a2_Fast_test():
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
 
+def e4_test():
+    filename, height, width = videos["foreman"]
+    R_D = []
+    config = CodecConfig(
+        block_size=16,
+        block_search_offset=2,
+        i_Period=1,
+        quant_level=0,
+        approximated_residual_n=2,
+        do_approximated_residual=False,
+        do_dct=True,
+        do_quantization=True,
+        do_entropy=False,
+        RD_lambda = 0,
+        VBSEnable=True,
+        FMEEnable=False,
+        FastME=False,
+    )
+    for i_p in [4, 10]:
+        config.i_Period = i_p
+        for level in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+            config.quant_level = level
+            encoder = VideoEncoder(height, width, config)
+            decoder = VideoDecoder(height, width, config)
+            psnr_sum = 0
+            for seq, frame in enumerate(
+                read_frames(get_media_file_path(filename), height, width, config)
+            ):
+                compressed_data = encoder.process(frame)
+                decoded_frame = decoder.process(compressed_data)
+                decoded_frame.display()
+                psnr_sum += decoded_frame.get_psnr(frame)
+                if seq == 10:
+                    print(psnr_sum)
+                    R_D.append((encoder.bitrate, (psnr_sum) / 11))
+                    break
+        R_D.sort()
+        print(R_D)
+        x = [R_D[i][0] for i in range(11)]
+        y = [R_D[i][1] for i in range(11)]
+        R_D = []
+        plt.plot(x, y, label="i_period=" + str(i_p), linewidth=0.5)
+    plt.show()
 
 def run_tests():
     e4_test()

@@ -23,6 +23,7 @@ class CodecConfig:
         FastME: bool = False,
     ) -> None:
         self.block_size = block_size
+        self.sub_block_size = block_size // 2
         self.block_search_offset = block_search_offset
         self.i_Period = i_Period
         self.quant_level = quant_level
@@ -34,7 +35,7 @@ class CodecConfig:
         self.RD_lambda = RD_lambda
         self.VBSEnable = VBSEnable
         self.FMEEnable = FMEEnable
-        self.FastME = FastME
+        self.FastME = FastME        
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
@@ -51,42 +52,20 @@ class Coder:
                 "Error! Quantization can only be enabled when DCT is enabled"
             )
             
-        self.frame_seq = 0
         self.config = config
         self.height = height
         self.width = width
-        self.previous_frame = YuvFrame(
-            np.full((self.height, self.width), 128),
-            self.config.block_size,
-        )
+        self.padded_height, self.padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
+        self.row_block_num = self.padded_width // self.config.block_size
         self.residual_processor = ResidualProcessor(
             self.config.block_size,
             self.config.quant_level,
             self.config.approximated_residual_n,
         )
-        self.bitrate = 0
 
-
-
-    def is_p_frame(self):
-        if self.config.i_Period == -1:
-            return True
-        if self.config.i_Period == 0:
-            return False
-        if self.frame_seq % self.config.i_Period == 0:
-            return False
-        else:
-            return True
-
-    def frame_processed(self, frame):
-        self.frame_seq += 1
-        self.previous_frame = frame
-
-    def is_i_frame(self):
-        return not self.is_p_frame()
 
     def create_FME_ref(self):
-        x, y = self.previous_frame.shape
+        x, y = self.padded_height, self.padded_width
         self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1))
         for i in range(x):
             for j in range(y):
@@ -166,6 +145,13 @@ class Coder:
         if self.config.do_entropy:
             descriptors = self.Entrophy_decoding(descriptors)
         return descriptors
+
+    def get_position_by_seq(self, block_seq, sub_block_seq):
+        row = block_seq // self.row_block_num * self.config.block_size
+        col = block_seq % self.row_block_num * self.config.block_size
+        row += (sub_block_seq // 2) * self.config.sub_block_size
+        col += (sub_block_seq % 2) * self.config.sub_block_size
+        return row, col
 
     # endregion
 
@@ -255,3 +241,33 @@ class Coder:
         return descriptors, bitrate
 
     # endregion
+
+
+class VideoCoder(Coder):
+    def __init__(self, height, width, config: CodecConfig) -> None:
+        super().__init__(height, width, config)
+        self.frame_seq = 0
+        self.previous_frame = YuvFrame(
+            np.full((self.height, self.width), 128),
+            self.config.block_size,
+        )
+        self.bitrate = 0
+        
+    def is_p_frame(self):
+        if self.config.i_Period == -1:
+            return True
+        if self.config.i_Period == 0:
+            return False
+        if self.frame_seq % self.config.i_Period == 0:
+            return False
+        else:
+            return True
+
+    def frame_processed(self, frame):
+        self.frame_seq += 1
+        self.previous_frame = frame
+
+    def is_i_frame(self):
+        return not self.is_p_frame()
+    
+    
