@@ -117,30 +117,29 @@ def e4_test():
         FMEEnable=False,
         FastME=False,
     )
-    for i_p in [4, 10]:
+    for i_p in [-1, 0, 4, 10]:
         config.i_Period = i_p
-        for level in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
+        levels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        for level in levels:
             config.quant_level = level
             encoder = VideoEncoder(height, width, config)
             decoder = VideoDecoder(height, width, config)
             psnr_sum = 0
-            for seq, frame in enumerate(
-                read_frames(get_media_file_path(filename), height, width, config)
-            ):
+            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
                 compressed_data = encoder.process(frame)
                 decoded_frame = decoder.process(compressed_data)
                 decoded_frame.display()
                 psnr_sum += decoded_frame.get_psnr(frame)
                 if seq == 10:
                     print(psnr_sum)
-                    R_D.append((encoder.bitrate, (psnr_sum) / 11))
+                    R_D.append((encoder.bitrate, (psnr_sum) / len(levels)))
                     break
-        R_D.sort()
         print(R_D)
-        x = [R_D[i][0] for i in range(11)]
-        y = [R_D[i][1] for i in range(11)]
+        x = [R_D[i][0] for i in range(len(levels))]
+        y = [R_D[i][1] for i in range(len(levels))]
         R_D = []
         plt.plot(x, y, label="i_period=" + str(i_p), linewidth=0.5)
+    plt.legend()
     plt.show()
 
 def run_tests():

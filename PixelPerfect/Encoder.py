@@ -10,7 +10,7 @@ class InterFrameEncoder(Coder):
         self.previous_frame = previous_frame
         self.inter_decoder = InterFrameDecoder(height, width, previous_frame, config)
         if self.config.FMEEnable:
-            self.create_FME_ref()
+            self.create_FME_ref(self.previous_frame)
 
     def is_better_match_block(
         self, di, dj, block: YuvBlock, min_mae, best_i, best_j
@@ -220,7 +220,7 @@ class IntraFrameEncoder(Coder):
         self.intra_decoder = IntraFrameDecoder(height, width, config)
             
     def get_intra_data(self, block: YuvBlock):
-        vertical_ref = np.full([block.block_size, block.block_size], 128)
+        vertical_ref = np.full([block.block_size, block.block_size], 128, dtype=np.uint8)
         if block.row_position != 0:
             vertical_ref_row = self.intra_decoder.frame[
                 block.row_position - 1 : block.row_position,
@@ -229,7 +229,7 @@ class IntraFrameEncoder(Coder):
             vertical_ref = np.repeat(
                 vertical_ref_row, repeats=block.block_size, axis=0
             )
-        horizontal_ref = np.full([block.block_size, block.block_size], 128)
+        horizontal_ref = np.full([block.block_size, block.block_size], 128, dtype=np.uint8)
         if block.col_position != 0:
             horizontal_ref_col = self.intra_decoder.frame[
                 block.row_position : block.row_position + block.block_size,
@@ -238,8 +238,8 @@ class IntraFrameEncoder(Coder):
             horizontal_ref = np.repeat(
                 horizontal_ref_col, repeats=block.block_size, axis=1
             )
-        vertical_residual = block.data.astype(np.int16) - vertical_ref.astype(np.int16)
-        horizontal_residual = block.data.astype(np.int16) - horizontal_ref.astype(np.int16)
+        vertical_residual = block.get_residual(vertical_ref)
+        horizontal_residual = block.get_residual(horizontal_ref)
         vertical_mae = np.mean(np.abs(vertical_residual))
         horizontal_mae = np.mean(np.abs(horizontal_residual))
         if vertical_mae < horizontal_mae:
@@ -313,9 +313,10 @@ class VideoEncoder(VideoCoder):
                     sub_blocks_last_row_mv,
                     sub_blocks_last_col_mv,
                 ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=True)
-                # print(f"sub_blocks_distortion: {sub_blocks_distortion}, sub_blocks_bitrate: {sub_blocks_bitrate}")
                 use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
-            # print(use_sub_blocks)
+                # roll back normal block status
+                if not use_sub_blocks:
+                    _ = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False)
 
             if use_sub_blocks:
                 compressed_residual += sub_blocks_residual
@@ -345,9 +346,7 @@ class VideoEncoder(VideoCoder):
                 normal_distortion,
                 normal_bitrate,
             ) = frame_encoder.process(block, block_seq, use_sub_blocks=False)
-            # print(f"normal_distortion: {normal_distortion}, normal_bitrate: {normal_bitrate}")
             use_sub_blocks = False
-
             if self.config.VBSEnable:
                 (
                     sub_blocks_residual,
@@ -355,9 +354,10 @@ class VideoEncoder(VideoCoder):
                     sub_blocks_distortion,
                     sub_blocks_bitrate,
                 ) = frame_encoder.process(block, block_seq, use_sub_blocks=True)
-                # print(f"sub_blocks_distortion: {sub_blocks_distortion}, sub_blocks_bitrate: {sub_blocks_bitrate}")
                 use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
-            # print(use_sub_blocks)
+                # roll back normal block status
+                if not use_sub_blocks:
+                    _ = frame_encoder.process(block, block_seq, use_sub_blocks=False)
             if use_sub_blocks:
                 compressed_residual += sub_blocks_residual
                 descriptors += sub_blocks_descriptors

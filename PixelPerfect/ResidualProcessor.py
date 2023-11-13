@@ -10,7 +10,7 @@ class ResidualProcessor:
         )
 
     def get_quant_matrix(self, block_size, quant_level):
-        quant_matrix = np.zeros((block_size, block_size))
+        quant_matrix = np.zeros((block_size, block_size), dtype=np.uint32)
         for iy, ix in np.ndindex(quant_matrix.shape):
             if (ix + iy) < block_size - 1:
                 quant_matrix[iy][ix] = math.pow(2, quant_level)

@@ -4,7 +4,7 @@ from math import log10, sqrt
 
 
 class YuvBlock:
-    def __init__(self, data, block_size, row, col) -> None:
+    def __init__(self, data: np.ndarray, block_size, row, col) -> None:
         self.data = data
         self.block_size = block_size
         self.row_position = row

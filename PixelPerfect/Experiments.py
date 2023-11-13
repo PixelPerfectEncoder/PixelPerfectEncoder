@@ -236,12 +236,10 @@ def e3_3_report():
             if seq == 0:
                 previous_frame = encoder.previous_frame
                 continue
-            previous_data = previous_frame.data.astype(np.int16)
-            current_data = frame.data.astype(np.int16)
-            residual_before = np.abs(previous_data - current_data).astype(np.uint8)
-            residual_after = np.zeros(
-                (height, width), dtype=np.uint8
-            )
+            previous_data = previous_frame.data
+            current_data = frame.data
+            residual_before = np.abs(previous_data.astype(np.int16) - current_data.astype(np.int16))
+            residual_after = np.zeros((height, width), dtype=np.int16)
             for seq, block_data in enumerate(compressed_data):
                 _, row_mv, col_mv = block_data
                 row_block_num = encoder.previous_frame.width // i
@@ -253,8 +251,8 @@ def e3_3_report():
                     previous_data[
                         block_row + row_mv : block_row + row_mv + i,
                         block_col + col_mv : block_col + col_mv + i,
-                    ]
-                    - current_data[block_row : block_row + i, block_col : block_col + i]
+                    ].astype(np.int16)
+                    - current_data[block_row : block_row + i, block_col : block_col + i].astype(np.int16)
                 )
             Image.fromarray(residual_before).save(
                 f"{filename} residual before i={i}.png"

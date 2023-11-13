@@ -17,7 +17,7 @@ class IntraFrameDecoder(Coder):
         else:
             block_size = self.config.block_size
         residual = self.decompress_residual(residual, block_size)
-        ref_block = np.full([block_size, block_size], 128)
+        ref_block = np.full([block_size, block_size], 128, dtype=np.uint8)
         if mode == 0:  # vertical
             if row != 0:
                 ref_row = self.frame[row - 1 : row, col : col + block_size]

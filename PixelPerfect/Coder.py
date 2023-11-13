@@ -64,28 +64,28 @@ class Coder:
         )
 
 
-    def create_FME_ref(self):
+    def create_FME_ref(self, previous_frame: YuvFrame):
         x, y = self.padded_height, self.padded_width
-        self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1))
+        self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1), dtype=np.uint8)
         for i in range(x):
             for j in range(y):
-                self.FME_ref_frame[2 * i, 2 * j] = self.previous_frame.data[i, j]
+                self.FME_ref_frame[2 * i, 2 * j] = previous_frame.data[i, j]
 
                 # Calculate the average of neighbors and store it in the result array
                 if i < x - 1:
                     self.FME_ref_frame[2 * i + 1, 2 * j] = round(
-                        self.previous_frame.data[i, j] / 2
-                        + self.previous_frame.data[i + 1, j] / 2
+                        previous_frame.data[i, j] / 2
+                        + previous_frame.data[i + 1, j] / 2
                     )
                 if j < y - 1:
                     self.FME_ref_frame[2 * i, 2 * j + 1] = round(
-                        self.previous_frame.data[i, j] / 2
-                        + self.previous_frame.data[i, j + 1] / 2
+                        previous_frame.data[i, j] / 2
+                        + previous_frame.data[i, j + 1] / 2
                     )
                 if i < x - 1 and j < y - 1:
                     self.FME_ref_frame[2 * i + 1, 2 * j + 1] = round(
-                        self.previous_frame.data[i + 1, j + 1] / 2
-                        + self.previous_frame.data[i, j] / 2
+                        previous_frame.data[i + 1, j + 1] / 2
+                        + previous_frame.data[i, j] / 2
                     )
 
     # region Decoding
@@ -248,7 +248,7 @@ class VideoCoder(Coder):
         super().__init__(height, width, config)
         self.frame_seq = 0
         self.previous_frame = YuvFrame(
-            np.full((self.height, self.width), 128),
+            np.full((self.height, self.width), 128, dtype=np.uint8),
             self.config.block_size,
         )
         self.bitrate = 0
