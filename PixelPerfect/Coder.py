@@ -228,6 +228,7 @@ class Coder:
         return bit_sequence
 
     def compress_residual(self, residual):
+        bitrate = 0
         if self.config.do_approximated_residual:
             residual = self.residual_processor.approx(residual)
         if self.config.do_dct:
@@ -237,19 +238,20 @@ class Coder:
         if self.config.do_entropy:
             residual = self.diagonalize_matrix(residual)
             residual = self.entrophy_coding(residual)
-            self.bitrate += residual.length
+            bitrate += residual.length
         else:
-            self.bitrate += self.cal_entrophy_bitcount(
+            bitrate += self.cal_entrophy_bitcount(
                 self.diagonalize_matrix(residual)
             )
-        return residual
+        return residual, bitrate
 
     def compress_descriptors(self, descriptors):
+        bitrate = 0
         if self.config.do_entropy:
             descriptors = self.entrophy_coding(descriptors)
-            self.bitrate += descriptors.length
+            bitrate += descriptors.length
         else:
-            self.bitrate += self.cal_entrophy_bitcount(descriptors)
-        return descriptors
+            bitrate += self.cal_entrophy_bitcount(descriptors)
+        return descriptors, bitrate
 
     # endregion

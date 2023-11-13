@@ -1,5 +1,5 @@
 from PixelPerfect.Decoder import VideoDecoder
-from PixelPerfect.Encoder import Encoder, CodecConfig
+from PixelPerfect.Encoder import VideoEncoder, CodecConfig
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 
@@ -22,7 +22,7 @@ def e3_test():
         do_quantization=False,
         do_entropy=False,
     )
-    encoder = Encoder(height, width, config)
+    encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
     for frame in read_frames(get_media_file_path(filename), height, width, config):
         compressed_data = encoder.process(frame)
@@ -38,11 +38,12 @@ def e4_test():
         block_search_offset=2,
         i_Period=1,
         quant_level=0,
-        approximated_residual_n=1,
+        approximated_residual_n=2,
         do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
+        RD_lambda = 0,
         VBSEnable=True,
         FMEEnable=False,
         FastME=False,
@@ -51,7 +52,7 @@ def e4_test():
         config.i_Period = i_p
         for level in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]:
             config.quant_level = level
-            encoder = Encoder(height, width, config)
+            encoder = VideoEncoder(height, width, config)
             decoder = VideoDecoder(height, width, config)
             psnr_sum = 0
             for seq, frame in enumerate(
@@ -89,7 +90,7 @@ def e4_simple_test():
         FMEEnable=False,
         FastME=True,
     )
-    encoder = Encoder(height, width, config)
+    encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
     for frame in read_frames(get_media_file_path(filename), height, width, config):
         compressed_data = encoder.process(frame)
@@ -111,7 +112,7 @@ def a2_FME_test():
         do_entropy=False,
         FMEEnable=True,
     )
-    encoder = Encoder(height, width, config)
+    encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
     for frame in read_frames(get_media_file_path(filename), height, width, config):
         compressed_data = encoder.process(frame)
@@ -134,7 +135,7 @@ def a2_Fast_test():
         FMEEnable=False,
         FastME=False,
     )
-    encoder = Encoder(height, width, config)
+    encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
     for frame in read_frames(get_media_file_path(filename), height, width, config):
         compressed_data = encoder.process(frame)
