@@ -175,6 +175,7 @@ class InterFrameEncoder(Coder):
         else:
             return self.get_inter_data_normal_search(block)
 
+    # this function should be idempotent
     def process(self, block: YuvBlock, block_seq: int, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool):
         compressed_residual = []
         descriptors = []
@@ -247,6 +248,7 @@ class IntraFrameEncoder(Coder):
         else:
             return horizontal_residual, 1
 
+    # this function should be idempotent
     def process(self, block: YuvBlock, block_seq: int, use_sub_blocks: bool):
         compressed_residual = []
         descriptors = []
@@ -302,7 +304,6 @@ class VideoEncoder(VideoCoder):
                 normal_last_row_mv,
                 normal_last_col_mv,
             ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False)
-            # print(f"normal_distortion: {normal_distortion}, normal_bitrate: {normal_bitrate}")
             use_sub_blocks = False
             if self.config.VBSEnable:
                 (
