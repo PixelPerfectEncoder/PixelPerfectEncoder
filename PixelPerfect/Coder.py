@@ -38,25 +38,14 @@ class CodecConfig:
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
-        conflict = []
-        if config.VBSEnable:
-            conflict.append("VBSEnable")
-        if config.FMEEnable:
-            conflict.append("FMEEnable")
-        if config.FastME:
-            conflict.append("FastME")
-        if len(conflict) > 1:
+        if config.FMEEnable and config.FastME:
             raise Exception(
-                "Error! The following options cannot be enabled at the same time: "
-                + ", ".join(conflict)
+                "Error! The following options cannot be enabled at the same time: FMEEnable, FastME"
             )
-
         if config.do_entropy and (not config.do_dct or not config.do_quantization):
             raise Exception(
                 "Error! Entropy coding can only be enabled when DCT and quantization are enabled"
             )
-        
-        
         self.frame_seq = 0
         self.config = config
         self.height = height
@@ -116,7 +105,7 @@ class Coder:
                     )
 
     # region Decoding
-    def RLE_decoding(self, sequence):
+    def RLE_decoding(self, sequence, block_size):
         decoded = []
         index = 0
         while index < len(sequence):
@@ -126,23 +115,23 @@ class Coder:
             else:
                 decoded.extend([0] * sequence[index])
             index += 1
-        decoded.extend([0] * (pow(self.config.block_size, 2) - len(decoded)))
+        decoded.extend([0] * (pow(block_size, 2) - len(decoded)))
         return decoded
 
-    def dediagonalize_sequence(self, sequence):
+    def dediagonalize_sequence(self, sequence, block_size):
         # put it back to 2d array
         quantized_data = [
-            [0 for i in range(self.config.block_size)]
-            for j in range(self.config.block_size)
+            [0 for i in range(block_size)]
+            for j in range(block_size)
         ]
         i = 0
-        for diagonal_length in range(1, self.config.block_size + 1):
+        for diagonal_length in range(1, block_size + 1):
             for j in range(diagonal_length):
                 quantized_data[j][diagonal_length - j - 1] = sequence[i]
                 i += 1
-        for diagonal_length in range(self.config.block_size - 1, 0, -1):
+        for diagonal_length in range(block_size - 1, 0, -1):
             for j in range(diagonal_length):
-                quantized_data[self.config.block_size - diagonal_length + j][
+                quantized_data[block_size - diagonal_length + j][
                     -1 * j - 1
                 ] = sequence[i]
                 i += 1
@@ -150,18 +139,18 @@ class Coder:
         quantized_data = np.array(quantized_data)
         return quantized_data
 
-    def Entrophy_decoding(self, data):
+    def Entrophy_decoding(self, data, block_size):
         data.pos = 0
         RLE_coded = []
         while data.pos != len(data):
             RLE_coded.append(data.read("se"))
-        RLE_decoded = self.RLE_decoding(RLE_coded)
+        RLE_decoded = self.RLE_decoding(RLE_coded, block_size)
         return RLE_decoded
 
-    def decompress_residual(self, residual):
+    def decompress_residual(self, residual, block_size):
         if self.config.do_entropy:
-            residual = self.Entrophy_decoding(residual)
-            residual = self.dediagonalize_sequence(residual)
+            residual = self.Entrophy_decoding(residual, block_size)
+            residual = self.dediagonalize_sequence(residual, block_size)
         if self.config.do_quantization:
             residual = self.residual_processor.de_quantization(residual)
         if self.config.do_dct:

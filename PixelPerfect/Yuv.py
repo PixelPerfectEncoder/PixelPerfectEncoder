@@ -16,6 +16,20 @@ class YuvBlock:
     def get_residual(self, reference_data: np.ndarray) -> np.ndarray:
         return self.data.astype(np.int16) - reference_data.astype(np.int16)
 
+    def get_sub_blocks(self):
+        sub_block_size = self.block_size // 2
+        for start_row in range(0, self.block_size, sub_block_size):
+            for start_col in range(0, self.block_size, sub_block_size):
+                yield YuvBlock(
+                    self.data[
+                        start_row : start_row + sub_block_size,
+                        start_col : start_col + sub_block_size,
+                    ],
+                    sub_block_size,
+                    self.row_position + start_row,
+                    self.col_position + start_col,
+                )
+
 class YuvFrame:
     def __init__(self, data, block_size) -> None:
         self.data = data

@@ -43,6 +43,7 @@ def e4_test():
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
+        VBSEnable=True,
         FMEEnable=False,
         FastME=False,
     )
