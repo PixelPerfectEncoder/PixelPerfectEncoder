@@ -39,10 +39,6 @@ class CodecConfig:
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
-        if config.FMEEnable and config.FastME:
-            raise Exception(
-                "Error! The following options cannot be enabled at the same time: FMEEnable, FastME"
-            )
         if config.do_entropy and (not config.do_dct or not config.do_quantization):
             raise Exception(
                 "Error! Entropy coding can only be enabled when DCT and quantization are enabled"

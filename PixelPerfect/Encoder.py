@@ -84,10 +84,26 @@ class InterFrameEncoder(Coder):
 
     def get_inter_data_fast_search(self, block: YuvBlock, mv_row_pred, mv_col_pred):
         block_size = block.block_size
-        row = min(max(0, block.row_position + mv_row_pred), self.height - block_size)
-        col = min(max(0, block.col_position + mv_col_pred), self.width - block_size)
+        if self.config.FMEEnable:
+            block_size = block_size * 2
+            height_bound = self.height * 2
+            width_bound = self.width * 2
+            row = min(max(0, block.row_position*2 + mv_row_pred), height_bound - block_size)
+            col = min(max(0, block.col_position*2 + mv_col_pred), width_bound - block_size)
+            step = 2
+            ref_frame = self.FME_ref_frame
+        else:
+            height_bound = self.height
+            width_bound = self.width
+            row = min(max(0, block.row_position + mv_row_pred), height_bound - block_size)
+            col = min(max(0, block.col_position + mv_col_pred), width_bound - block_size)
+            ref_frame = self.previous_frame
+            step =1
         mae = block.get_mae(
-            self.previous_frame.data[row : row + block_size, col : col + block_size]
+            ref_frame[
+            row: row + block_size: step,
+            col: col + block_size: step,
+            ]
         )
         search_moves = [(0, -1), (0, 1), (-1, 0), (1, 0)]
         while True:
@@ -97,14 +113,15 @@ class InterFrameEncoder(Coder):
                 new_col = col + dcol
                 if (
                     new_row < 0
-                    or new_row + block_size > self.height
+                    or new_row + block_size > height_bound
                     or new_col < 0
-                    or new_col + block_size > self.width
+                    or new_col + block_size > width_bound
                 ):
                     continue
                 new_mae = block.get_mae(
-                    self.previous_frame.data[
-                        new_row : new_row + block_size, new_col : new_col + block_size
+                    ref_frame[
+                    new_row: new_row + block_size: step,
+                    new_col: new_col + block_size: step,
                     ]
                 )
                 if new_mae < mae:
@@ -113,13 +130,11 @@ class InterFrameEncoder(Coder):
                     updated = True
             if not updated:
                 break
-
-        best_di, best_dj = row - block.row_position, col - block.col_position
-        ref_frame = self.previous_frame.data[
-            row : row + block_size,
-            col : col + block_size,
-        ]
-        return block.get_residual(ref_frame), best_di, best_dj
+        if self.config.FMEEnable:
+            best_di, best_dj = row - block.row_position * 2, col - block.col_position * 2
+        else:
+            best_di, best_dj = row - block.row_position, col - block.col_position
+        return block.get_residual(ref_frame[row : row + block_size: step,col : col + block_size: step]), best_di, best_dj
 
     def get_inter_data_normal_search(self, block: YuvBlock):
         block_size = block.block_size

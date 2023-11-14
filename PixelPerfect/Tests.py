@@ -113,11 +113,11 @@ def e4_test():
         do_quantization=True,
         do_entropy=False,
         RD_lambda = 0,
-        VBSEnable=True,
-        FMEEnable=False,
+        VBSEnable=False,
+        FMEEnable=True,
         FastME=False,
     )
-    for i_p in [-1, 0, 4, 10]:
+    for i_p in [-1, 1, 4, 10]:
         config.i_Period = i_p
         levels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         for level in levels:
