@@ -1,5 +1,6 @@
 from PixelPerfect.Decoder import VideoDecoder
-from PixelPerfect.Encoder import VideoEncoder, CodecConfig
+from PixelPerfect.Encoder import VideoEncoder
+from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 
@@ -89,8 +90,8 @@ def a2_Fast_test():
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
-        FMEEnable=False,
-        FastME=False,
+        FMEEnable=True,
+        FastME=True,
     )
     encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
@@ -108,18 +109,18 @@ def e4_test():
         i_Period=1,
         quant_level=0,
         approximated_residual_n=2,
-        do_approximated_residual=True,
-        do_dct=True,
-        do_quantization=True,
+        do_approximated_residual=False,
+        do_dct=False,
+        do_quantization=False,
         do_entropy=False,
         RD_lambda = 0,
         VBSEnable=False,
         FMEEnable=False,
         FastME=False,
     )
-    for i_p in [1, 4, 10]:
+    for i_p in [-1, 0, 4]:
         config.i_Period = i_p
-        levels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        levels = [0, 5, 8]
         for level in levels:
             config.quant_level = level
             encoder = VideoEncoder(height, width, config)
@@ -129,7 +130,7 @@ def e4_test():
                 compressed_data = encoder.process(frame)
                 decoded_frame = decoder.process(compressed_data)
                 decoded_frame.display()
-                psnr_sum += decoded_frame.get_psnr(frame)
+                psnr_sum += decoded_frame.PSNR(frame)
                 if seq == 10:
                     print(psnr_sum)
                     R_D.append((encoder.bitrate, (psnr_sum) / len(levels)))

@@ -1,5 +1,6 @@
 from PixelPerfect.Yuv import YuvFrame
-from PixelPerfect.Coder import CodecConfig, Coder, VideoCoder
+from PixelPerfect.Coder import Coder, VideoCoder
+from PixelPerfect.CodecConfig import CodecConfig
 import numpy as np
 import math
 
@@ -7,7 +8,8 @@ import math
 class IntraFrameDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
-        self.frame = np.zeros([self.padded_height, self.padded_width], dtype=np.uint8)
+        self.frame = YuvFrame(self.config, height=height, width=width)
+
 
     # this function should be idempotent
     def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block):
@@ -19,20 +21,16 @@ class IntraFrameDecoder(Coder):
         residual = self.decompress_residual(residual, block_size)
         ref_block = np.full([block_size, block_size], 128, dtype=np.uint8)
         if mode == 0:  # vertical
-            if row != 0:
-                ref_row = self.frame[row - 1 : row, col : col + block_size]
-                ref_block = np.repeat(ref_row, repeats=block_size, axis=0)
+            ref_block = self.frame.get_vertical_ref_block(row, col, block_size)
         else:  # horizontal
-            if col != 0:
-                ref_col = self.frame[row : row + block_size, col - 1 : col]
-                ref_block = np.repeat(ref_col, repeats=block_size, axis=1)
-        self.frame[row : row + block_size, col : col + block_size] = residual + ref_block
+            ref_block = self.frame.get_horizontal_ref_block(row, col, block_size)
+        self.frame.data[row : row + block_size, col : col + block_size] = residual + ref_block.data
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frame, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.previous_frame = previous_frame
-        self.frame = np.zeros([self.padded_height, self.padded_width], dtype=np.uint8)
+        self.frame = YuvFrame(self.config, height=height, width=width)
         
     # this function should be idempotent
     def process(self, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block):        
@@ -62,7 +60,7 @@ class InterFrameDecoder(Coder):
                 )
             )
             reconstructed_block = ref_blcok + residual
-            self.frame[
+            self.frame.data[
                 row : row + block_size, col : col + block_size
             ] = reconstructed_block
         else:
@@ -74,7 +72,7 @@ class InterFrameDecoder(Coder):
                 ]
                 + residual
             )
-            self.frame[
+            self.frame.data[
                 row : row + block_size, col : col + block_size
             ] = reconstructed_block
         
@@ -107,10 +105,10 @@ class VideoDecoder(VideoCoder):
                         block_seq += 1
                 else:
                     block_seq += 1
-        frame = np.clip(inter_decoder.frame, 0, 255)
-        res = YuvFrame(frame, self.config.block_size)
-        self.frame_processed(res)
-        return res
+        frame = inter_decoder.frame
+        frame.clip()        
+        self.frame_processed(frame)
+        return frame
 
     def process_i_frame(self, compressed_data):
         compressed_residual, compressed_descriptors = compressed_data
@@ -134,10 +132,9 @@ class VideoDecoder(VideoCoder):
                     block_seq += 1
                 
         frame = intra_decoder.frame
-        frame = np.clip(frame, 0, 255)
-        res = YuvFrame(frame, self.config.block_size)
-        self.frame_processed(res)
-        return res
+        frame.clip()
+        self.frame_processed(frame)
+        return frame
 
     def process(self, compressed_data):
         if self.is_p_frame():

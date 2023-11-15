@@ -2,7 +2,7 @@ import uuid
 import pickle
 import os
 from PixelPerfect.Yuv import YuvFrame
-from PixelPerfect.Coder import CodecConfig
+from PixelPerfect.CodecConfig import CodecConfig
 import numpy as np
 
 def read_frames(source_path, height, width, config: CodecConfig):
@@ -13,8 +13,8 @@ def read_frames(source_path, height, width, config: CodecConfig):
     
     for yuv_frame_data in read_video(source_path, yuv_frame_size):
         yield YuvFrame(
-            np.frombuffer(yuv_frame_data[:y_frame_size], dtype=np.uint8).reshape((height, width)),
-            config.block_size,
+            config,
+            data=np.frombuffer(yuv_frame_data[:y_frame_size], dtype=np.uint8).reshape((height, width)),
         )
 
 def read_video(path, size):

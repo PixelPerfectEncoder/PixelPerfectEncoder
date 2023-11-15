@@ -1,5 +1,6 @@
 from PixelPerfect.Decoder import VideoDecoder
-from PixelPerfect.Encoder import VideoEncoder, CodecConfig
+from PixelPerfect.Encoder import VideoEncoder
+from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 from PIL import Image
