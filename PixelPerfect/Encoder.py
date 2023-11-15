@@ -299,8 +299,6 @@ class IntraFrameEncoder(Coder):
 class VideoEncoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
-        self.decoder = VideoDecoder(height, width, config)
-
 
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate
@@ -347,7 +345,7 @@ class VideoEncoder(VideoCoder):
 
         compressed_descriptors, _ = self.compress_descriptors(descriptors)
         compressed_data = (compressed_residual, compressed_descriptors)
-        decoded_frame = self.decoder.process(compressed_data)
+        decoded_frame = YuvFrame(frame_encoder.inter_decoder.frame, self.config.block_size)
         self.frame_processed(decoded_frame)
         return compressed_data
 
@@ -385,7 +383,7 @@ class VideoEncoder(VideoCoder):
             
         compressed_descriptors, _ = self.compress_descriptors(descriptors)
         compressed_data = (compressed_residual, compressed_descriptors)
-        decoded_frame = self.decoder.process(compressed_data)
+        decoded_frame = YuvFrame(frame_encoder.intra_decoder.frame, self.config.block_size)
         self.frame_processed(decoded_frame)
         return compressed_data
 
