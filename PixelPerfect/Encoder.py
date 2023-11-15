@@ -100,7 +100,7 @@ class InterFrameEncoder(Coder):
             ref_frame = self.previous_frame
             step =1
         mae = block.get_mae(
-            ref_frame[
+            ref_frame.data[
             row: row + block_size: step,
             col: col + block_size: step,
             ]
@@ -119,7 +119,7 @@ class InterFrameEncoder(Coder):
                 ):
                     continue
                 new_mae = block.get_mae(
-                    ref_frame[
+                    ref_frame.data[
                     new_row: new_row + block_size: step,
                     new_col: new_col + block_size: step,
                     ]
@@ -134,7 +134,7 @@ class InterFrameEncoder(Coder):
             best_di, best_dj = row - block.row_position * 2, col - block.col_position * 2
         else:
             best_di, best_dj = row - block.row_position, col - block.col_position
-        return block.get_residual(ref_frame[row : row + block_size: step,col : col + block_size: step]), best_di, best_dj
+        return block.get_residual(ref_frame.data[row : row + block_size: step,col : col + block_size: step]), best_di, best_dj
 
     def get_inter_data_normal_search(self, block: YuvBlock):
         block_size = block.block_size

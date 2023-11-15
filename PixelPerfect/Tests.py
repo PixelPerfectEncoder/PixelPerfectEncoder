@@ -113,9 +113,9 @@ def e4_test():
         do_quantization=True,
         do_entropy=False,
         RD_lambda = 0,
-        VBSEnable=False,
+        VBSEnable=True,
         FMEEnable=False,
-        FastME=False,
+        FastME=True,
     )
     for i_p in [1, 4, 10]:
         config.i_Period = i_p
