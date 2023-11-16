@@ -38,7 +38,9 @@ class InterFrameEncoder(Coder):
 
     def get_inter_data_fast_search(self, block: YuvBlock, mv_row_pred, mv_col_pred):
         best_block = self.previous_frame.get_block(
-            block.row + mv_row_pred, block.col + mv_col_pred
+            min(max(0, block.row + mv_row_pred), self.height - block.block_size),
+            min(max(0, block.col + mv_col_pred), self.width - block.block_size),
+            block.block_size == self.config.sub_block_size,
         )
         best_mae = block.get_mae(best_block)
         has_gain = True
@@ -63,9 +65,7 @@ class InterFrameEncoder(Coder):
         best_di, best_dj = None, None
         best_block = None
         for ref_block in self.previous_frame.get_ref_blocks_in_offset_area(block):
-            is_better_match, mae = self.is_better_match_block(
-                block, ref_block, min_mae, best_i, best_j
-            )
+            is_better_match, mae = self.is_better_match_block(block, ref_block, min_mae, best_i, best_j)
             if is_better_match:
                 min_mae = mae
                 best_i, best_j = ref_block.row, ref_block.col
@@ -116,13 +116,17 @@ class InterFrameEncoder(Coder):
             residual, bitrate = self.compress_residual(residual)
             residual_bitrate += bitrate
             compressed_residual.append(residual)
-            descriptors.append(row_mv - last_row_mv)
-            descriptors.append(col_mv - last_col_mv)
+            if self.config.FMEEnable:
+                descriptors.append(int(2 * (row_mv - last_row_mv)))
+                descriptors.append(int(2 * (col_mv - last_col_mv)))
+            else:
+                descriptors.append(row_mv - last_row_mv)
+                descriptors.append(col_mv - last_col_mv)
             if self.config.VBSEnable:
                 descriptors.append(0)
             last_row_mv, last_col_mv = row_mv, col_mv
             self.inter_decoder.process(block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
-        reconstructed_block = self.inter_decoder.frame.get_block(block.row, block.col)
+        reconstructed_block = self.inter_decoder.frame.get_block(block.row, block.col, is_sub_block=False)
         distortion = block.get_SAD(reconstructed_block)
         return (
             compressed_residual,
@@ -142,11 +146,11 @@ class IntraFrameEncoder(Coder):
             
     def get_intra_data(self, block: YuvBlock):
         vertical_ref = self.intra_decoder.frame.get_vertical_ref_block(
-            block.row, block.col, block.block_size
+            block.row, block.col, block.block_size == self.config.sub_block_size
         )
         vertical_mae = block.get_mae(vertical_ref)
         horizontal_ref = self.intra_decoder.frame.get_horizontal_ref_block(
-            block.row, block.col, block.block_size
+            block.row, block.col, block.block_size == self.config.sub_block_size
         )
         horizontal_mae = block.get_mae(horizontal_ref)
         if vertical_mae < horizontal_mae:
@@ -178,7 +182,7 @@ class IntraFrameEncoder(Coder):
             if self.config.VBSEnable:
                 descriptors.append(0)
 
-        reconstructed_block = self.intra_decoder.frame.get_block(block.row, block.col)
+        reconstructed_block = self.intra_decoder.frame.get_block(block.row, block.col, is_sub_block=False)
         distortion = block.get_SAD(reconstructed_block)
         return compressed_residual, descriptors, distortion, residual_bitrate
 

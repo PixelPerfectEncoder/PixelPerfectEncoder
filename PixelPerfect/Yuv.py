@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-from math import log10, sqrt
+from math import log10, sqrt, isclose
 from PixelPerfect.CodecConfig import CodecConfig
 
 class YuvBlock:
@@ -9,6 +9,9 @@ class YuvBlock:
         self.block_size: int = block_size
         self.row: int = row
         self.col: int = col
+
+    def add_residual(self, residual: np.ndarray):
+        self.data = self.data + residual
 
     def get_mae(self, ref_block) -> float:
         return np.mean(np.abs(self.data.astype(np.int16) - ref_block.data.astype(np.int16)))
@@ -104,9 +107,9 @@ class YuvFrame:
         col = center_block.col
         if self.config.FMEEnable:
             for drow, dcol in self.cross_area_moves:
-                r = row + drow
-                c = col + dcol
-                if r < 0 or r + block_size > self.FME_frame.shape[0] or c < 0 or c + block_size > self.FME_frame.shape[1]:
+                r = int(row * 2) + drow
+                c = int(col * 2) + dcol
+                if r < 0 or r + block_size * 2 > self.FME_frame.shape[0] or c < 0 or c + block_size * 2 > self.FME_frame.shape[1]:
                     continue
                 yield YuvBlock(
                     self.FME_frame[
@@ -114,8 +117,8 @@ class YuvFrame:
                         c : c + block_size * 2 : 2,
                     ],
                     block_size,
-                    r,
-                    c,
+                    r / 2,
+                    c / 2,
                 )
         else:   
             for drow, dcol in self.cross_area_moves:
@@ -139,10 +142,13 @@ class YuvFrame:
         col = center_block.col
         offset = self.config.block_search_offset
         if self.config.FMEEnable:
-            row_start = max(0, row - 2 * offset)
-            row_end = min(self.FME_frame.shape[0] - block_size, row + 2 * offset)
+            row = int(row * 2)
+            col = int(col * 2)
+            offset *= 2
+            row_start = max(0, row - offset)
+            row_end = min(self.FME_frame.shape[0] - block_size * 2, row + offset)
             col_start = max(0, col - 2 * offset)
-            col_end = min(self.FME_frame.shape[1] - block_size, col + 2 * offset)
+            col_end = min(self.FME_frame.shape[1] - block_size * 2, col + offset)
             for r in range(row_start, row_end + 1):
                 for c in range(col_start, col_end + 1): 
                     yield YuvBlock(
@@ -151,8 +157,8 @@ class YuvFrame:
                             c : c + block_size * 2 : 2,
                         ],
                         block_size,
-                        r,
-                        c,
+                        r / 2,
+                        c / 2,
                     )
         else:
             row_start = max(0, row - offset)
@@ -171,14 +177,15 @@ class YuvFrame:
                         c,
                     )
         
-    def get_vertical_ref_block(self, row, col, block_size) -> YuvBlock:
+    def get_vertical_ref_block(self, row, col, is_sub_block: bool) -> YuvBlock:
+        block_size = self.config.sub_block_size if is_sub_block else self.block_size
         if row == 0:
             return YuvBlock(
                 np.zeros((block_size, block_size), dtype=np.uint8),
                 block_size,
                 row,
                 col,
-            )
+            )  
         vertical_ref_row = self.data[
             row - 1 : row,
             col : col + block_size,
@@ -190,7 +197,8 @@ class YuvFrame:
             col,
         )
         
-    def get_horizontal_ref_block(self, row, col, block_size) -> YuvBlock:
+    def get_horizontal_ref_block(self, row, col, is_sub_block: bool) -> YuvBlock:
+        block_size = self.config.sub_block_size if is_sub_block else self.block_size
         if col == 0:
             return YuvBlock(
                 np.zeros((block_size, block_size), dtype=np.uint8),
@@ -210,52 +218,62 @@ class YuvFrame:
         )
     
     def get_blocks(self) -> YuvBlock:
-        if self.config.FMEEnable:
-            for start_row in range(0, self.height, self.block_size):
-                for start_col in range(0, self.width, self.block_size):
-                    yield YuvBlock(
-                        self.data[
-                            start_row : start_row + self.block_size,
-                            start_col : start_col + self.block_size,
-                        ],
-                        self.block_size,
-                        start_row * 2,
-                        start_col * 2,
-                    )
-        else:
-            for start_row in range(0, self.height, self.block_size):
-                for start_col in range(0, self.width, self.block_size):
-                    yield YuvBlock(
-                        self.data[
-                            start_row : start_row + self.block_size,
-                            start_col : start_col + self.block_size,
-                        ],
-                        self.block_size,
-                        start_row,
-                        start_col,
-                    )
+        for start_row in range(0, self.height, self.block_size):
+            for start_col in range(0, self.width, self.block_size):
+                yield YuvBlock(
+                    self.data[
+                        start_row : start_row + self.block_size,
+                        start_col : start_col + self.block_size,
+                    ],
+                    self.block_size,
+                    start_row,
+                    start_col,
+                )
 
-    def get_block(self, row, col) -> YuvBlock:
+    def get_block(self, row, col, is_sub_block) -> YuvBlock:
+        block_size = self.config.sub_block_size if is_sub_block else self.block_size
         if self.config.FMEEnable:
-            return YuvBlock(
-                self.FME_frame[
-                    row : row + self.block_size * 2 : 2,
-                    col : col + self.block_size * 2 : 2,
-                ],
-                self.block_size,
-                row,
-                col,
-            )
+            data = self.FME_frame[
+                int(row * 2) : int(row * 2) + block_size * 2 : 2,
+                int(col * 2) : int(col * 2) + block_size * 2 : 2,
+            ]
         else:
-            return YuvBlock(
-                self.data[
-                    row : row + self.block_size,
-                    col : col + self.block_size,
-                ],
-                self.block_size,
+            data = self.data[
+                row : row + block_size,
+                col : col + block_size,
+            ]
+        return YuvBlock(
+                data,
+                block_size,
                 row,
                 col,
             )
+
+    def get_block_by_mv(self, row, col, row_mv, col_mv, block_size: int) -> YuvBlock:
+        if self.config.FMEEnable:
+            data = self.FME_frame[
+                row * 2 + int(row_mv * 2) : row * 2 + int(row_mv * 2) + block_size * 2 : 2,
+                col * 2 + int(col_mv * 2) : col * 2 + int(col_mv * 2) + block_size * 2 : 2,
+            ]
+        else:
+            data = self.data[
+                row + row_mv : row + row_mv + block_size,
+                col + col_mv : col + col_mv + block_size,
+            ]
+        return YuvBlock(
+            data,
+            block_size,
+            row + row_mv,
+            col + col_mv,
+        )
+
+    def add_block(self, row, col, block_size, data):
+        if not isclose(row % 1, 0) or not isclose(col % 1, 0):
+            raise Exception(f"Error! Invalid block position {row}, {col}")
+        self.data[
+            int(row) : int(row) + block_size,
+            int(col) : int(col) + block_size,
+        ] = data
 
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)

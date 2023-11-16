@@ -21,13 +21,13 @@ class IntraFrameDecoder(Coder):
         residual = self.decompress_residual(residual, block_size)
         ref_block = np.full([block_size, block_size], 128, dtype=np.uint8)
         if mode == 0:  # vertical
-            ref_block = self.frame.get_vertical_ref_block(row, col, block_size)
+            ref_block = self.frame.get_vertical_ref_block(row, col, is_sub_block)
         else:  # horizontal
-            ref_block = self.frame.get_horizontal_ref_block(row, col, block_size)
+            ref_block = self.frame.get_horizontal_ref_block(row, col, is_sub_block)
         self.frame.data[row : row + block_size, col : col + block_size] = residual + ref_block.data
 
 class InterFrameDecoder(Coder):
-    def __init__(self, height, width, previous_frame, config: CodecConfig) -> None:
+    def __init__(self, height, width, previous_frame: YuvFrame, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.previous_frame = previous_frame
         self.frame = YuvFrame(self.config, height=height, width=width)
@@ -40,41 +40,9 @@ class InterFrameDecoder(Coder):
         else:
             block_size = self.config.block_size
         residual = self.decompress_residual(residual, block_size)
-        if self.config.FMEEnable:
-            ref_row_f = math.floor(row + row_mv / 2)
-            ref_col_f = math.floor(col + col_mv / 2)
-            ref_row_c = math.ceil(row + row_mv / 2)
-            ref_col_c = math.ceil(col + col_mv / 2)
-            ref_blcok = np.round(
-                (
-                    self.previous_frame.data[
-                        ref_row_f : ref_row_f + block_size,
-                        ref_col_f : ref_col_f + block_size,
-                    ]
-                    / 2
-                    + self.previous_frame.data[
-                        ref_row_c : ref_row_c + block_size,
-                        ref_col_c : ref_col_c + block_size,
-                    ]
-                    / 2
-                )
-            )
-            reconstructed_block = ref_blcok + residual
-            self.frame.data[
-                row : row + block_size, col : col + block_size
-            ] = reconstructed_block
-        else:
-            ref_row = row + row_mv
-            ref_col = col + col_mv
-            reconstructed_block = (
-                self.previous_frame.data[
-                    ref_row : ref_row + block_size, ref_col : ref_col + block_size
-                ]
-                + residual
-            )
-            self.frame.data[
-                row : row + block_size, col : col + block_size
-            ] = reconstructed_block
+        reconstructed_block = self.previous_frame.get_block_by_mv(row, col, row_mv, col_mv, block_size)
+        reconstructed_block.add_residual(residual)
+        self.frame.add_block(row, col, block_size, reconstructed_block.data)
         
 class VideoDecoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
@@ -89,13 +57,19 @@ class VideoDecoder(VideoCoder):
         last_row_mv, last_col_mv = 0, 0
         for seq, residual in enumerate(compressed_residual):
             if not self.config.VBSEnable:
-                row_mv, col_mv = descriptors[seq * 2] + last_row_mv, descriptors[seq * 2 + 1] + last_col_mv
+                if self.config.FMEEnable:
+                    row_mv, col_mv = descriptors[seq * 2] / 2 + last_row_mv, descriptors[seq * 2 + 1] / 2 + last_col_mv
+                else:
+                    row_mv, col_mv = descriptors[seq * 2] + last_row_mv, descriptors[seq * 2 + 1] + last_col_mv
                 inter_decoder.process(block_seq, 0, residual, row_mv, col_mv, False)
                 last_row_mv, last_col_mv = row_mv, col_mv
                 block_seq += 1
             else:
                 is_sub_block = descriptors[seq * 3 + 2] == 1
-                row_mv, col_mv = descriptors[seq * 3] + last_row_mv, descriptors[seq * 3 + 1] + last_col_mv
+                if self.config.FMEEnable:
+                    row_mv, col_mv = descriptors[seq * 3] / 2 + last_row_mv, descriptors[seq * 3 + 1] / 2 + last_col_mv
+                else:
+                    row_mv, col_mv = descriptors[seq * 3] + last_row_mv, descriptors[seq * 3 + 1] + last_col_mv
                 inter_decoder.process(block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block)
                 last_row_mv, last_col_mv = row_mv, col_mv
                 if is_sub_block:
