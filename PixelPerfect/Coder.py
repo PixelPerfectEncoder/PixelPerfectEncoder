@@ -1,41 +1,9 @@
 import numpy as np
-from PixelPerfect.Yuv import YuvFrame
+from PixelPerfect.Yuv import YuvFrame, ReferenceFrame
 from PixelPerfect.ResidualProcessor import ResidualProcessor
+from PixelPerfect.CodecConfig import CodecConfig
 from bitstring import BitArray, BitStream
 from math import log2, floor
-
-
-class CodecConfig:
-    def __init__(
-        self,
-        block_size,
-        block_search_offset,
-        i_Period: int = -1,
-        quant_level: int = 2,
-        approximated_residual_n: int = 2,
-        do_approximated_residual: bool = False,
-        do_dct: bool = False,
-        do_quantization: bool = False,
-        do_entropy: bool = False,
-        RD_lambda: float = 0,
-        VBSEnable: bool = False,
-        FMEEnable: bool = False,
-        FastME: bool = False,
-    ) -> None:
-        self.block_size = block_size
-        self.sub_block_size = block_size // 2
-        self.block_search_offset = block_search_offset
-        self.i_Period = i_Period
-        self.quant_level = quant_level
-        self.approximated_residual_n = approximated_residual_n
-        self.do_approximated_residual = do_approximated_residual
-        self.do_dct = do_dct
-        self.do_quantization = do_quantization
-        self.do_entropy = do_entropy
-        self.RD_lambda = RD_lambda
-        self.VBSEnable = VBSEnable
-        self.FMEEnable = FMEEnable
-        self.FastME = FastME        
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
@@ -51,39 +19,14 @@ class Coder:
         self.config = config
         self.height = height
         self.width = width
-        self.padded_height, self.padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
-        self.row_block_num = self.padded_width // self.config.block_size
+        _, padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
+        self.row_block_num = padded_width // self.config.block_size
         self.residual_processor = ResidualProcessor(
             self.config.block_size,
             self.config.quant_level,
             self.config.approximated_residual_n,
         )
-
-
-    def create_FME_ref(self, previous_frame: YuvFrame):
-        x, y = self.padded_height, self.padded_width
-        self.FME_ref_frame = np.zeros((2 * x - 1, 2 * y - 1), dtype=np.uint8)
-        for i in range(x):
-            for j in range(y):
-                self.FME_ref_frame[2 * i, 2 * j] = previous_frame.data[i, j]
-
-                # Calculate the average of neighbors and store it in the result array
-                if i < x - 1:
-                    self.FME_ref_frame[2 * i + 1, 2 * j] = round(
-                        previous_frame.data[i, j] / 2
-                        + previous_frame.data[i + 1, j] / 2
-                    )
-                if j < y - 1:
-                    self.FME_ref_frame[2 * i, 2 * j + 1] = round(
-                        previous_frame.data[i, j] / 2
-                        + previous_frame.data[i, j + 1] / 2
-                    )
-                if i < x - 1 and j < y - 1:
-                    self.FME_ref_frame[2 * i + 1, 2 * j + 1] = round(
-                        previous_frame.data[i + 1, j + 1] / 2
-                        + previous_frame.data[i, j] / 2
-                    )
-
+        
     # region Decoding
     def RLE_decoding(self, sequence, block_size):
         decoded = []
@@ -243,10 +186,7 @@ class VideoCoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.frame_seq = 0
-        self.previous_frame = YuvFrame(
-            np.full((self.height, self.width), 128, dtype=np.uint8),
-            self.config.block_size,
-        )
+        self.previous_frame = ReferenceFrame(config, np.full(shape=(self.height, self.width), fill_value=128, dtype=np.uint8))
         self.bitrate = 0
         
     def is_p_frame(self):

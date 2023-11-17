@@ -1,5 +1,6 @@
 from PixelPerfect.Decoder import VideoDecoder
-from PixelPerfect.Encoder import VideoEncoder, CodecConfig
+from PixelPerfect.Encoder import VideoEncoder
+from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
 import matplotlib.pyplot as plt
 
@@ -89,8 +90,8 @@ def a2_Fast_test():
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
-        FMEEnable=False,
-        FastME=False,
+        FMEEnable=True,
+        FastME=True,
     )
     encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
@@ -113,11 +114,11 @@ def e4_test():
         do_quantization=True,
         do_entropy=False,
         RD_lambda = 0,
-        VBSEnable=False,
-        FMEEnable=False,
-        FastME=False,
+        VBSEnable=True,
+        FMEEnable=True,
+        FastME=True,
     )
-    for i_p in [ 1, 4, 10]:
+    for i_p in [4]:
         config.i_Period = i_p
         levels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         for level in levels:
