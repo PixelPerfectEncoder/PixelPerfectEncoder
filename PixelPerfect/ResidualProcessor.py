@@ -1,6 +1,6 @@
 import math
 import numpy as np
-from scipy.fft import idctn, dctn
+from scipy.fft import idctn, dctn, dct, idct
 
 class ResidualProcessor:
     def init_approx_matrix(self):
@@ -29,8 +29,10 @@ class ResidualProcessor:
     def approx(self, residual: np.ndarray) -> np.ndarray:
         return self.residual2round[np.abs(residual)] * np.sign(residual)
 
-    def dct_transform(self, residuals):
-        transform = dctn(residuals, norm="ortho")
+    def dct_transform(self,residuals):
+        # transform = dctn(residuals,type =2, norm="ortho")
+        transform = dct(dct(residuals.T, type =2,norm='ortho').T, norm='ortho')
+        transform = np.rint(transform)
         return transform
 
     def quantization(self, dct: np.ndarray):
@@ -41,7 +43,7 @@ class ResidualProcessor:
         else:
             raise Exception("Error! Invalid data shape")
         quantized = np.divide(dct, quant_matrix)
-        quantized = np.round(quantized)
+        quantized = np.rint(quantized)
         return quantized
 
     def de_quantization(self, data: np.ndarray):
@@ -55,5 +57,7 @@ class ResidualProcessor:
         return original
 
     def de_dct(self, data):
-        original = idctn(data, norm="ortho")
+        # original = idctn(data, type =2,norm="ortho")
+        original = idct(idct(data.T, type =2,norm='ortho').T, norm='ortho')
+        # original = np.rint(original)
         return original
