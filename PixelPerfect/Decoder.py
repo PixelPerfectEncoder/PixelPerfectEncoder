@@ -24,8 +24,8 @@ class IntraFrameDecoder(Coder):
             ref_block = self.frame.get_vertical_ref_block(row, col, is_sub_block)
         else:  # horizontal
             ref_block = self.frame.get_horizontal_ref_block(row, col, is_sub_block)
-            
-        self.frame.add_block(row, col, block_size, residual + ref_block.data)
+        ref_block.add_residual(residual)
+        self.frame.add_block(row, col, block_size, ref_block)
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frame: YuvFrame, config: CodecConfig) -> None:

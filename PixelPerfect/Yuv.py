@@ -99,16 +99,19 @@ class YuvFrame:
                     self.FME_frame[2 * i + 1, 2 * j + 1] = round(
                         self.data[i + 1, j + 1] / 2
                         + self.data[i, j] / 2
-                    )        
+                    )
+        self.is_FME_Frame_up_to_date = True
     
     def get_ref_blocks_in_cross_area(self, center_block: YuvBlock) -> YuvBlock:
         block_size = center_block.block_size
         row = center_block.row
         col = center_block.col
         if self.config.FMEEnable:
+            if not self.is_FME_Frame_up_to_date:
+                self.create_FME_ref()
             for drow, dcol in self.cross_area_moves:
-                r = int(row * 2) + drow
-                c = int(col * 2) + dcol
+                r = int(row * 2 + drow)
+                c = int(col * 2 + dcol)
                 if r < 0 or r + block_size * 2 > self.FME_frame.shape[0] or c < 0 or c + block_size * 2 > self.FME_frame.shape[1]:
                     continue
                 yield YuvBlock(
@@ -142,6 +145,8 @@ class YuvFrame:
         col = center_block.col
         offset = self.config.block_search_offset
         if self.config.FMEEnable:
+            if not self.is_FME_Frame_up_to_date:
+                self.create_FME_ref()
             row = int(row * 2)
             col = int(col * 2)
             offset *= 2
@@ -232,18 +237,13 @@ class YuvFrame:
 
     def get_block(self, row, col, is_sub_block) -> YuvBlock:
         block_size = self.config.sub_block_size if is_sub_block else self.block_size
-        if self.config.FMEEnable:
-            data = self.FME_frame[
-                int(row * 2) : int(row * 2) + block_size * 2 : 2,
-                int(col * 2) : int(col * 2) + block_size * 2 : 2,
-            ]
-        else:
-            data = self.data[
-                row : row + block_size,
-                col : col + block_size,
-            ]
+        if isclose(row % 1, 0) and isclose(col % 1, 0):
+            raise Exception(f"Error! Invalid block position {row}, {col}")
         return YuvBlock(
-                data,
+                self.data[
+                    row : row + block_size,
+                    col : col + block_size,
+                ],
                 block_size,
                 row,
                 col,
@@ -251,6 +251,8 @@ class YuvFrame:
 
     def get_block_by_mv(self, row, col, row_mv, col_mv, block_size: int) -> YuvBlock:
         if self.config.FMEEnable:
+            if not self.is_FME_Frame_up_to_date:
+                self.create_FME_ref()
             data = self.FME_frame[
                 row * 2 + int(row_mv * 2) : row * 2 + int(row_mv * 2) + block_size * 2 : 2,
                 col * 2 + int(col_mv * 2) : col * 2 + int(col_mv * 2) + block_size * 2 : 2,
@@ -274,6 +276,7 @@ class YuvFrame:
             int(row) : int(row) + block_size,
             int(col) : int(col) + block_size,
         ] = data.clip(0, 255)
+        self.is_FME_Frame_up_to_date = False
 
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)
@@ -287,7 +290,6 @@ class YuvFrame:
             return 100
         return 20 * log10(PIXEL_MAX / sqrt(mse))
     
-
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)
         cv2.waitKey(duration)

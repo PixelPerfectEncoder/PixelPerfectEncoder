@@ -109,14 +109,14 @@ def e4_test():
         i_Period=1,
         quant_level=0,
         approximated_residual_n=2,
-        do_approximated_residual=False,
-        do_dct=False,
-        do_quantization=False,
+        do_approximated_residual=True,
+        do_dct=True,
+        do_quantization=True,
         do_entropy=False,
         RD_lambda = 0,
-        VBSEnable=False,
-        FMEEnable=False,
-        FastME=False,
+        VBSEnable=True,
+        FMEEnable=True,
+        FastME=True,
     )
     for i_p in [ 1, 4, 10]:
         config.i_Period = i_p

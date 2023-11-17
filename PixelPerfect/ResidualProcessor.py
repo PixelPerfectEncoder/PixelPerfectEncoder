@@ -30,8 +30,8 @@ class ResidualProcessor:
         return self.residual2round[np.abs(residual)] * np.sign(residual)
 
     def dct_transform(self,residuals):
-        # transform = dctn(residuals,type =2, norm="ortho")
-        transform = dct(dct(residuals.T, type =2,norm='ortho').T, norm='ortho')
+        transform = dctn(residuals, type=2, norm="ortho")
+        # transform = dct(dct(residuals.T, type =2,norm='ortho').T, norm='ortho')
         transform = np.rint(transform)
         return transform
 
