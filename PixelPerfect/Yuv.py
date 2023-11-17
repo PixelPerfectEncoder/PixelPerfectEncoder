@@ -267,13 +267,13 @@ class YuvFrame:
             col + col_mv,
         )
 
-    def add_block(self, row, col, block_size, data):
+    def add_block(self, row, col, block_size, data: np.ndarray):
         if not isclose(row % 1, 0) or not isclose(col % 1, 0):
             raise Exception(f"Error! Invalid block position {row}, {col}")
         self.data[
             int(row) : int(row) + block_size,
             int(col) : int(col) + block_size,
-        ] = data
+        ] = data.clip(0, 255)
 
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)
@@ -287,9 +287,7 @@ class YuvFrame:
             return 100
         return 20 * log10(PIXEL_MAX / sqrt(mse))
     
-    def clip(self):
-        self.data = np.clip(self.data, 0, 255)
-    
+
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)
         cv2.waitKey(duration)

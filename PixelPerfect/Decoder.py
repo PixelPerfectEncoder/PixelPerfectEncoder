@@ -24,7 +24,8 @@ class IntraFrameDecoder(Coder):
             ref_block = self.frame.get_vertical_ref_block(row, col, is_sub_block)
         else:  # horizontal
             ref_block = self.frame.get_horizontal_ref_block(row, col, is_sub_block)
-        self.frame.data[row : row + block_size, col : col + block_size] = residual + ref_block.data
+            
+        self.frame.add_block(row, col, block_size, residual + ref_block.data)
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frame: YuvFrame, config: CodecConfig) -> None:
@@ -79,8 +80,7 @@ class VideoDecoder(VideoCoder):
                         block_seq += 1
                 else:
                     block_seq += 1
-        frame = inter_decoder.frame
-        frame.clip()        
+        frame = inter_decoder.frame    
         self.frame_processed(frame)
         return frame
 
@@ -106,7 +106,6 @@ class VideoDecoder(VideoCoder):
                     block_seq += 1
                 
         frame = intra_decoder.frame
-        frame.clip()
         self.frame_processed(frame)
         return frame
 
