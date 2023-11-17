@@ -114,12 +114,12 @@ def e4_test():
         do_entropy=False,
         RD_lambda = 0,
         VBSEnable=False,
-        FMEEnable=True,
-        FastME=True,
+        FMEEnable=False,
+        FastME=False,
     )
-    for i_p in [1, 4, 10]:
+    for i_p in [ 1, 4, 10]:
         config.i_Period = i_p
-        levels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+        levels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         for level in levels:
             config.quant_level = level
             encoder = VideoEncoder(height, width, config)
@@ -129,7 +129,8 @@ def e4_test():
                 compressed_data = encoder.process(frame)
                 decoded_frame = decoder.process(compressed_data)
                 decoded_frame.display()
-                psnr_sum += decoded_frame.get_psnr(frame)
+
+                psnr_sum += frame.PSNR(decoded_frame)
                 if seq == 10:
                     print(psnr_sum)
                     R_D.append((encoder.bitrate, (psnr_sum) / len(levels)))

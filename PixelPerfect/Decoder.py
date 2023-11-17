@@ -26,7 +26,7 @@ class IntraFrameDecoder(Coder):
             if col != 0:
                 ref_col = self.frame[row : row + block_size, col - 1 : col]
                 ref_block = np.repeat(ref_col, repeats=block_size, axis=1)
-        self.frame[row : row + block_size, col : col + block_size] = residual + ref_block
+        self.frame[row : row + block_size, col : col + block_size] = np.clip(residual + ref_block,0,255)
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frame, config: CodecConfig) -> None:
@@ -68,12 +68,12 @@ class InterFrameDecoder(Coder):
         else:
             ref_row = row + row_mv
             ref_col = col + col_mv
-            reconstructed_block = (
+            reconstructed_block = np.clip(
                 self.previous_frame.data[
                     ref_row : ref_row + block_size, ref_col : ref_col + block_size
                 ]
                 + residual
-            )
+            ,0,255)
             self.frame[
                 row : row + block_size, col : col + block_size
             ] = reconstructed_block
