@@ -1,4 +1,4 @@
-from PixelPerfect.Yuv import YuvFrame
+from PixelPerfect.Yuv import ConstructingFrame, ReferenceFrame
 from PixelPerfect.Coder import Coder, VideoCoder
 from PixelPerfect.CodecConfig import CodecConfig
 import numpy as np
@@ -8,8 +8,7 @@ import math
 class IntraFrameDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
-        self.frame = YuvFrame(self.config, height=height, width=width)
-
+        self.frame = ConstructingFrame(self.config, height=height, width=width)
 
     # this function should be idempotent
     def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block):
@@ -25,13 +24,13 @@ class IntraFrameDecoder(Coder):
         else:  # horizontal
             ref_block = self.frame.get_horizontal_ref_block(row, col, is_sub_block)
         ref_block.add_residual(residual)
-        self.frame.add_block(row, col, block_size, ref_block)
+        self.frame.put_block(row, col, ref_block)
 
 class InterFrameDecoder(Coder):
-    def __init__(self, height, width, previous_frame: YuvFrame, config: CodecConfig) -> None:
+    def __init__(self, height, width, previous_frame: ReferenceFrame, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.previous_frame = previous_frame
-        self.frame = YuvFrame(self.config, height=height, width=width)
+        self.frame = ConstructingFrame(self.config, height=height, width=width)
         
     # this function should be idempotent
     def process(self, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block):        
@@ -43,7 +42,7 @@ class InterFrameDecoder(Coder):
         residual = self.decompress_residual(residual, block_size)
         reconstructed_block = self.previous_frame.get_block_by_mv(row, col, row_mv, col_mv, block_size)
         reconstructed_block.add_residual(residual)
-        self.frame.add_block(row, col, block_size, reconstructed_block.data)
+        self.frame.put_block(row, col, reconstructed_block)
         
 class VideoDecoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
@@ -80,7 +79,7 @@ class VideoDecoder(VideoCoder):
                         block_seq += 1
                 else:
                     block_seq += 1
-        frame = inter_decoder.frame    
+        frame = inter_decoder.frame.to_reference_frame()
         self.frame_processed(frame)
         return frame
 
@@ -105,7 +104,7 @@ class VideoDecoder(VideoCoder):
                 else:
                     block_seq += 1
                 
-        frame = intra_decoder.frame
+        frame = intra_decoder.frame.to_reference_frame()
         self.frame_processed(frame)
         return frame
 

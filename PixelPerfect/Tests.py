@@ -118,7 +118,7 @@ def e4_test():
         FMEEnable=True,
         FastME=True,
     )
-    for i_p in [ 1, 4, 10]:
+    for i_p in [4]:
         config.i_Period = i_p
         levels = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
         for level in levels:

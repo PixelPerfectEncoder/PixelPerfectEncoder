@@ -1,12 +1,12 @@
 import numpy as np
-from PixelPerfect.Yuv import YuvBlock, YuvFrame
+from PixelPerfect.Yuv import YuvBlock, ReferenceFrame
 from PixelPerfect.Coder import Coder, VideoCoder
 from PixelPerfect.Decoder import IntraFrameDecoder, InterFrameDecoder
 from PixelPerfect.CodecConfig import CodecConfig
 
 
 class InterFrameEncoder(Coder):
-    def __init__(self, height, width, previous_frame: YuvFrame, config: CodecConfig):
+    def __init__(self, height, width, previous_frame: ReferenceFrame, config: CodecConfig):
         super().__init__(height, width, config)
         self.previous_frame = previous_frame
         self.inter_decoder = InterFrameDecoder(height, width, previous_frame, config)
@@ -97,8 +97,12 @@ class InterFrameEncoder(Coder):
                 residual, bitrate = self.compress_residual(residual)
                 compressed_residual.append(residual)
                 residual_bitrate += bitrate
-                descriptors.append(row_mv - last_row_mv)
-                descriptors.append(col_mv - last_col_mv)
+                if self.config.FMEEnable:
+                    descriptors.append(int(2 * (row_mv - last_row_mv)))
+                    descriptors.append(int(2 * (col_mv - last_col_mv)))
+                else:
+                    descriptors.append(row_mv - last_row_mv)
+                    descriptors.append(col_mv - last_col_mv)
                 descriptors.append(1)
                 last_row_mv, last_col_mv = row_mv, col_mv
                 self.inter_decoder.process(
@@ -194,7 +198,7 @@ class VideoEncoder(VideoCoder):
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate
 
-    def process_p_frame(self, frame: YuvFrame):
+    def process_p_frame(self, frame: ReferenceFrame):
         compressed_residual = []
         descriptors = []
         last_row_mv, last_col_mv = 0, 0
@@ -239,11 +243,11 @@ class VideoEncoder(VideoCoder):
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         self.bitrate += descriptors_bitrate
         compressed_data = (compressed_residual, compressed_descriptors)
-        decoded_frame = frame_encoder.inter_decoder.frame
+        decoded_frame = frame_encoder.inter_decoder.frame.to_reference_frame()
         self.frame_processed(decoded_frame)
         return compressed_data
 
-    def process_i_frame(self, frame: YuvFrame):
+    def process_i_frame(self, frame: ReferenceFrame):
         compressed_residual = []
         descriptors = []
         frame_encoder = IntraFrameEncoder(self.height, self.width, self.config, frame.data)
@@ -279,11 +283,11 @@ class VideoEncoder(VideoCoder):
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         self.bitrate += descriptors_bitrate
         compressed_data = (compressed_residual, compressed_descriptors)
-        decoded_frame = frame_encoder.intra_decoder.frame
+        decoded_frame = frame_encoder.intra_decoder.frame.to_reference_frame()
         self.frame_processed(decoded_frame)
         return compressed_data
 
-    def process(self, frame: YuvFrame):
+    def process(self, frame: ReferenceFrame):
         if self.is_i_frame():
             return self.process_i_frame(frame)
         else:

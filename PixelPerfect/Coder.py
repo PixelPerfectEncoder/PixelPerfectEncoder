@@ -1,5 +1,5 @@
 import numpy as np
-from PixelPerfect.Yuv import YuvFrame
+from PixelPerfect.Yuv import YuvFrame, ReferenceFrame
 from PixelPerfect.ResidualProcessor import ResidualProcessor
 from PixelPerfect.CodecConfig import CodecConfig
 from bitstring import BitArray, BitStream
@@ -19,8 +19,8 @@ class Coder:
         self.config = config
         self.height = height
         self.width = width
-        self.padded_height, self.padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
-        self.row_block_num = self.padded_width // self.config.block_size
+        _, padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
+        self.row_block_num = padded_width // self.config.block_size
         self.residual_processor = ResidualProcessor(
             self.config.block_size,
             self.config.quant_level,
@@ -186,7 +186,7 @@ class VideoCoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.frame_seq = 0
-        self.previous_frame = YuvFrame(self.config, height=height, width=width)
+        self.previous_frame = ReferenceFrame(config, np.full(shape=(self.height, self.width), fill_value=128, dtype=np.uint8))
         self.bitrate = 0
         
     def is_p_frame(self):
