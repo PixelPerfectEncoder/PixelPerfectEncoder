@@ -118,6 +118,9 @@ def e4_test():
         FMEEnable=True,
         FastME=True,
         nRefFrames=3,
+        DisplayMvs=True,
+        DisplayBlocks=True,
+        DisplayRefFrames=True,
     )
     for i_p in [4]:
         config.i_Period = i_p

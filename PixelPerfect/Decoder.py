@@ -2,11 +2,17 @@ from PixelPerfect.Yuv import ConstructingFrame, ReferenceFrame
 from PixelPerfect.Coder import Coder, VideoCoder
 from PixelPerfect.CodecConfig import CodecConfig
 from typing import Deque
+import numpy as np
+import cv2
 
 class IntraFrameDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.frame = ConstructingFrame(self.config, height=height, width=width)
+        if self.config.need_display:
+            self.display_BW_frame = ConstructingFrame(self.config, height=height, width=width)
+            if self.config.DisplayRefFrames:
+                self.display_Color_frame = ConstructingFrame(self.config, height=height, width=width)
 
     # this function should be idempotent
     def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block):
@@ -22,13 +28,21 @@ class IntraFrameDecoder(Coder):
             ref_block = self.frame.get_horizontal_ref_block(row, col, is_sub_block)
         ref_block.add_residual(residual)
         self.frame.put_block(row, col, ref_block)
+        if self.config.need_display:
+            self.display_BW_frame.put_block(row, col, ref_block)
+            if self.config.DisplayBlocks:
+                self.display_BW_frame.draw_block(row, col, block_size)
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frames: Deque[ReferenceFrame], config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.previous_frames = previous_frames
         self.frame = ConstructingFrame(self.config, height=height, width=width)
-        
+        if self.config.need_display:
+            self.display_BW_frame = ConstructingFrame(self.config, height=height, width=width)
+            if self.config.DisplayRefFrames:
+                self.display_Color_frame = ConstructingFrame(self.config, height=height, width=width)
+            
     # this function should be idempotent
     def process(self, frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block):
         ref_frame = self.previous_frames[frame_seq]
@@ -41,6 +55,15 @@ class InterFrameDecoder(Coder):
         reconstructed_block = ref_frame.get_block_by_mv(row, col, row_mv, col_mv, block_size)
         reconstructed_block.add_residual(residual)
         self.frame.put_block(row, col, reconstructed_block)
+        if self.config.need_display:
+            self.display_BW_frame.put_block(row, col, reconstructed_block)
+            if self.config.DisplayMvs:
+                self.display_BW_frame.draw_mv(row, col, row_mv, col_mv, block_size)
+            if self.config.DisplayRefFrames:
+                self.display_Color_frame.draw_ref_frame(row, col, block_size, frame_seq)
+            if self.config.DisplayBlocks:
+                self.display_BW_frame.draw_block(row, col, block_size)
+
         
 class VideoDecoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
@@ -81,6 +104,18 @@ class VideoDecoder(VideoCoder):
                     block_seq += 1
         frame = inter_decoder.frame.to_reference_frame()
         self.frame_processed(frame)
+        if self.config.need_display:
+            if self.config.DisplayRefFrames:
+                img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+                # img[:, :, 0] = inter_decoder.display_Color_frame.data
+                img[:, :, 1] = inter_decoder.display_Color_frame.data
+                img[:, :, 2] = inter_decoder.display_BW_frame.data
+            else:
+                img = inter_decoder.display_BW_frame.data
+            
+            cv2.imshow("", cv2.cvtColor(img, cv2.COLOR_HSV2BGR))
+            cv2.waitKey(1)
+
         return frame
 
     def process_i_frame(self, compressed_data):
@@ -107,6 +142,8 @@ class VideoDecoder(VideoCoder):
                 
         frame = intra_decoder.frame.to_reference_frame()
         self.frame_processed(frame)
+        if self.config.need_display:
+            intra_decoder.display_frame.display()
         return frame
 
     def process(self, compressed_data):

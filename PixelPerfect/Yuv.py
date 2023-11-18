@@ -68,6 +68,11 @@ class YuvFrame:
             constant_values=128,
         )
         self.height, self.width = self.data.shape
+        if self.config.DisplayRefFrames:
+            self.frame_seq2color = dict()
+            interval = 255 // self.config.nRefFrames
+            for i in range(self.config.nRefFrames):
+                self.frame_seq2color[self.config.nRefFrames - 1 - i] = i * interval
 
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)
@@ -84,6 +89,19 @@ class YuvFrame:
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)
         cv2.waitKey(duration)
+
+    def draw_mv(self, row, col, row_mv, col_mv, block_size):
+        center = (int(col + block_size / 2), int(row + block_size / 2))
+        target = (int(col + block_size / 2 + col_mv), int(row + block_size / 2 + row_mv))
+        cv2.arrowedLine(self.data, center, target, color=0, thickness=1, tipLength=0.3)
+
+    def draw_ref_frame(self, row, col, block_size, frame_seq):
+        color = self.frame_seq2color[frame_seq]
+        cv2.rectangle(self.data, (col, row), (col + block_size, row + block_size), color=color, thickness=-1)
+    
+    def draw_block(self, row, col, block_size):
+        cv2.rectangle(self.data, (col, row), (col + block_size, row + block_size), color=0, thickness=1)
+
 
 class ConstructingFrame(YuvFrame):
     def __init__(self, config: CodecConfig, height, width) -> None:
