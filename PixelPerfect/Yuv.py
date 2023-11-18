@@ -91,8 +91,8 @@ class YuvFrame:
         cv2.waitKey(duration)
 
     def draw_mv(self, row, col, row_mv, col_mv, block_size):
-        center = (int(col + block_size / 2), int(row + block_size / 2))
-        target = (int(col + block_size / 2 + col_mv), int(row + block_size / 2 + row_mv))
+        target = (int(col + block_size / 2), int(row + block_size / 2))
+        center = (int(col + block_size / 2 + col_mv), int(row + block_size / 2 + row_mv))
         cv2.arrowedLine(self.data, center, target, color=0, thickness=1, tipLength=0.3)
 
     def draw_ref_frame(self, row, col, block_size, frame_seq):
