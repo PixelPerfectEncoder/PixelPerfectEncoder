@@ -117,6 +117,7 @@ def e4_test():
         VBSEnable=True,
         FMEEnable=True,
         FastME=True,
+        nRefFrames=3,
     )
     for i_p in [4]:
         config.i_Period = i_p

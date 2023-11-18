@@ -1,15 +1,14 @@
-import numpy as np
 from PixelPerfect.Yuv import YuvBlock, ReferenceFrame
 from PixelPerfect.Coder import Coder, VideoCoder
 from PixelPerfect.Decoder import IntraFrameDecoder, InterFrameDecoder
 from PixelPerfect.CodecConfig import CodecConfig
-
+from typing import Deque
 
 class InterFrameEncoder(Coder):
-    def __init__(self, height, width, previous_frame: ReferenceFrame, config: CodecConfig):
+    def __init__(self, height, width, previous_frames: Deque[ReferenceFrame], config: CodecConfig):
         super().__init__(height, width, config)
-        self.previous_frame = previous_frame
-        self.inter_decoder = InterFrameDecoder(height, width, previous_frame, config)
+        self.previous_frames = previous_frames
+        self.inter_decoder = InterFrameDecoder(height, width, previous_frames, config)
 
     def is_better_match_block(
         self, block: YuvBlock, ref_block: YuvBlock, min_mae, best_i, best_j
@@ -37,26 +36,36 @@ class InterFrameEncoder(Coder):
         return False, None
 
     def get_inter_data_fast_search(self, block: YuvBlock, mv_row_pred, mv_col_pred):
-        best_block = self.previous_frame.get_block(
-            min(max(0, block.row + mv_row_pred), self.height - block.block_size),
-            min(max(0, block.col + mv_col_pred), self.width - block.block_size),
-            block.block_size == self.config.sub_block_size,
-        )
-        best_mae = block.get_mae(best_block)
-        has_gain = True
-        while has_gain:
-            has_gain = False
-            # do cross area search
-            for ref_block in self.previous_frame.get_ref_blocks_in_cross_area(best_block):
-                ref_block_mae = block.get_mae(ref_block)
-                if ref_block_mae < best_mae:
-                    best_block = ref_block
-                    best_mae = ref_block_mae
-                    has_gain = True
+        best_block_among_all_frames = None
+        best_mae_among_all_frames = float("inf")
+        best_ref_frame_seq = None
+        for ref_frame_seq, ref_frame in enumerate(self.previous_frames):
+            best_block = ref_frame.get_block(
+                min(max(0, block.row + mv_row_pred), self.height - block.block_size),
+                min(max(0, block.col + mv_col_pred), self.width - block.block_size),
+                block.block_size == self.config.sub_block_size,
+            )
+            best_mae = block.get_mae(best_block)
+            has_gain = True
+            while has_gain:
+                has_gain = False
+                # do cross area search
+                for ref_block in ref_frame.get_ref_blocks_in_cross_area(best_block):
+                    ref_block_mae = block.get_mae(ref_block)
+                    if ref_block_mae < best_mae:
+                        best_block = ref_block
+                        best_mae = ref_block_mae
+                        has_gain = True
+            if best_mae < best_mae_among_all_frames:
+                best_block_among_all_frames = best_block
+                best_mae_among_all_frames = best_mae
+                best_ref_frame_seq = ref_frame_seq
+            
         return (
-            block.get_residual(best_block),
-            best_block.row - block.row,
-            best_block.col - block.col,
+            block.get_residual(best_block_among_all_frames),
+            best_block_among_all_frames.row - block.row,
+            best_block_among_all_frames.col - block.col,
+            best_ref_frame_seq
         )
 
     def get_inter_data_normal_search(self, block: YuvBlock):
@@ -64,14 +73,17 @@ class InterFrameEncoder(Coder):
         best_i, best_j = None, None
         best_di, best_dj = None, None
         best_block = None
-        for ref_block in self.previous_frame.get_ref_blocks_in_offset_area(block):
-            is_better_match, mae = self.is_better_match_block(block, ref_block, min_mae, best_i, best_j)
-            if is_better_match:
-                min_mae = mae
-                best_i, best_j = ref_block.row, ref_block.col
-                best_di, best_dj = ref_block.row - block.row, ref_block.col - block.col
-                best_block = ref_block
-        return block.get_residual(best_block), best_di, best_dj
+        best_frame_seq = None
+        for frame_seq, ref_frame in enumerate(self.previous_frames):
+            for ref_block in ref_frame.get_ref_blocks_in_offset_area(block):
+                is_better_match, mae = self.is_better_match_block(block, ref_block, min_mae, best_i, best_j)
+                if is_better_match:
+                    min_mae = mae
+                    best_i, best_j = ref_block.row, ref_block.col
+                    best_di, best_dj = ref_block.row - block.row, ref_block.col - block.col
+                    best_block = ref_block
+                    best_frame_seq = frame_seq
+        return block.get_residual(best_block), best_di, best_dj, best_frame_seq
 
     def get_inter_data(self, block: YuvBlock, last_row_mv, last_col_mv):
         if self.config.FastME:
@@ -93,7 +105,7 @@ class InterFrameEncoder(Coder):
         residual_bitrate = 0
         if use_sub_blocks:
             for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
-                residual, row_mv, col_mv = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
+                residual, row_mv, col_mv, frame_seq = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
                 residual, bitrate = self.compress_residual(residual)
                 compressed_residual.append(residual)
                 residual_bitrate += bitrate
@@ -104,19 +116,11 @@ class InterFrameEncoder(Coder):
                     descriptors.append(row_mv - last_row_mv)
                     descriptors.append(col_mv - last_col_mv)
                 descriptors.append(1)
+                descriptors.append(frame_seq)
                 last_row_mv, last_col_mv = row_mv, col_mv
-                self.inter_decoder.process(
-                    block_seq,
-                    sub_block_seq,
-                    residual,
-                    row_mv,
-                    col_mv,
-                    is_sub_block=True,
-                )
+                self.inter_decoder.process(frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block=True)
         else:
-            residual, row_mv, col_mv = self.get_inter_data(
-                block, last_row_mv, last_col_mv
-            )
+            residual, row_mv, col_mv, frame_seq = self.get_inter_data(block, last_row_mv, last_col_mv)
             residual, bitrate = self.compress_residual(residual)
             residual_bitrate += bitrate
             compressed_residual.append(residual)
@@ -128,8 +132,9 @@ class InterFrameEncoder(Coder):
                 descriptors.append(col_mv - last_col_mv)
             if self.config.VBSEnable:
                 descriptors.append(0)
+            descriptors.append(frame_seq)
             last_row_mv, last_col_mv = row_mv, col_mv
-            self.inter_decoder.process(block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
+            self.inter_decoder.process(frame_seq, block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
         reconstructed_block = self.inter_decoder.frame.get_block(block.row, block.col, is_sub_block=False)
         distortion = block.get_SAD(reconstructed_block)
         return (
@@ -202,7 +207,7 @@ class VideoEncoder(VideoCoder):
         compressed_residual = []
         descriptors = []
         last_row_mv, last_col_mv = 0, 0
-        frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frame, self.config)
+        frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frames, self.config)
         for block_seq, block in enumerate(frame.get_blocks()):
             (
                 normal_residual,
@@ -248,6 +253,7 @@ class VideoEncoder(VideoCoder):
         return compressed_data
 
     def process_i_frame(self, frame: ReferenceFrame):
+        self.previous_frames.clear()
         compressed_residual = []
         descriptors = []
         frame_encoder = IntraFrameEncoder(self.height, self.width, self.config, frame.data)
