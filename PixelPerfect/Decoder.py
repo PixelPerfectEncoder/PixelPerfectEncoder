@@ -62,7 +62,7 @@ class InterFrameDecoder(Coder):
             if self.config.DisplayMvAndMode:
                 self.display_BW_frame.draw_mv(row, col, row_mv, col_mv, block_size)
             if self.config.DisplayRefFrames:
-                self.display_Color_frame.draw_ref_frame(row, col, block_size, frame_seq)
+                self.display_Color_frame.draw_ref_frame(row, col, block_size, len(self.previous_frames) - 1 - frame_seq)
             if self.config.DisplayBlocks:
                 self.display_BW_frame.draw_block(row, col, block_size)
 
@@ -111,6 +111,7 @@ class VideoDecoder(VideoCoder):
         if self.config.need_display:
             if self.config.DisplayRefFrames:
                 img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+                img[:, :, 0] = np.full((self.height, self.width), 128, dtype=np.uint8)
                 img[:, :, 1] = inter_decoder.display_Color_frame.data
                 img[:, :, 2] = inter_decoder.display_BW_frame.data
                 img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)

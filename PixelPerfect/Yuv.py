@@ -70,7 +70,7 @@ class YuvFrame:
         self.height, self.width = self.data.shape
         if self.config.DisplayRefFrames:
             self.frame_seq2color = dict()
-            interval = 255 // (self.config.nRefFrames + 1)
+            interval = 255 // self.config.nRefFrames
             for i in range(self.config.nRefFrames):
                 self.frame_seq2color[i] = i * interval
 
@@ -111,8 +111,8 @@ class YuvFrame:
             end = (col - 1, row + block_size)
         cv2.line(self.data, start, end, color=0, thickness=1)
 
-    def draw_ref_frame(self, row, col, block_size, frame_seq):
-        color = self.frame_seq2color[self.config.nRefFrames - 1 - frame_seq]
+    def draw_ref_frame(self, row, col, block_size, distance):
+        color = self.frame_seq2color[distance]
         cv2.rectangle(self.data, (col, row), (col + block_size, row + block_size), color=color, thickness=-1)
     
     def draw_block(self, row, col, block_size):
