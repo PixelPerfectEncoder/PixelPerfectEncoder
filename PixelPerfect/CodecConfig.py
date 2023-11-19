@@ -14,6 +14,10 @@ class CodecConfig:
         VBSEnable: bool = False,
         FMEEnable: bool = False,
         FastME: bool = False,
+        nRefFrames: int = 1,
+        DisplayBlocks: bool = False,
+        DisplayMvAndMode: bool = False,
+        DisplayRefFrames: bool = False,
     ) -> None:
         self.block_size = block_size
         self.sub_block_size = block_size // 2
@@ -28,4 +32,9 @@ class CodecConfig:
         self.RD_lambda = RD_lambda
         self.VBSEnable = VBSEnable
         self.FMEEnable = FMEEnable
-        self.FastME = FastME  
+        self.FastME = FastME
+        self.nRefFrames = nRefFrames
+        self.DisplayBlocks = DisplayBlocks
+        self.DisplayMvAndMode = DisplayMvAndMode
+        self.DisplayRefFrames = DisplayRefFrames
+        self.need_display = self.DisplayBlocks or self.DisplayMvAndMode or self.DisplayRefFrames

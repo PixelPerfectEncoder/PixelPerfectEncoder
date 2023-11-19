@@ -68,6 +68,11 @@ class YuvFrame:
             constant_values=128,
         )
         self.height, self.width = self.data.shape
+        if self.config.DisplayRefFrames:
+            self.frame_seq2color = dict()
+            interval = 255 // self.config.nRefFrames
+            for i in range(self.config.nRefFrames):
+                self.frame_seq2color[i] = i * interval
 
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)
@@ -81,9 +86,38 @@ class YuvFrame:
             return 100
         return 20 * log10(PIXEL_MAX / sqrt(mse))
     
+    def MAE(self, compressed):
+        return np.mean(np.abs(self.data.astype(np.int16) - compressed.data.astype(np.int16)))
+    
     def display(self, duration=1):
         cv2.imshow("y frame", self.data)
         cv2.waitKey(duration)
+
+    def draw_mv(self, row, col, row_mv, col_mv, block_size):
+        target = (int(col + block_size / 2), int(row + block_size / 2))
+        center = (int(col + block_size / 2 + col_mv), int(row + block_size / 2 + row_mv))
+        cv2.arrowedLine(self.data, center, target, color=0, thickness=1, tipLength=0.3)
+
+    def draw_mode(self, row, col, block_size, mode):
+        if mode == 0: # vertical
+            if row - 1 < 0:
+                return
+            start = (col, row - 1)
+            end = (col + block_size, row - 1)
+        else: # horizontal
+            if col - 1 < 0:
+                return
+            start = (col - 1, row)
+            end = (col - 1, row + block_size)
+        cv2.line(self.data, start, end, color=0, thickness=1)
+
+    def draw_ref_frame(self, row, col, block_size, distance):
+        color = self.frame_seq2color[distance]
+        cv2.rectangle(self.data, (col, row), (col + block_size, row + block_size), color=color, thickness=-1)
+    
+    def draw_block(self, row, col, block_size):
+        cv2.rectangle(self.data, (col, row), (col + block_size, row + block_size), color=0, thickness=1)
+
 
 class ConstructingFrame(YuvFrame):
     def __init__(self, config: CodecConfig, height, width) -> None:
