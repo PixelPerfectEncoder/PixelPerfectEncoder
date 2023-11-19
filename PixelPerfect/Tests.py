@@ -109,7 +109,7 @@ def e4_test():
         i_Period=1,
         quant_level=0,
         approximated_residual_n=2,
-        do_approximated_residual=True,
+        do_approximated_residual=False,
         do_dct=True,
         do_quantization=True,
         do_entropy=False,
@@ -165,7 +165,7 @@ def plot_a_RD_to_bitrate_curve(config: CodecConfig, label: str, show_time=False)
             decoded_frame = decoder.process(compressed_data)
             psnr_sum += frame.PSNR(decoded_frame)
             if seq == 10:
-                R_D.append((encoder.bitrate, (psnr_sum) / len(levels)))
+                R_D.append((encoder.bitrate, (psnr_sum) / 10))
                 break
         print(f"{label}'s {level} is processed")
     x = [R_D[i][0] for i in range(len(levels))]
@@ -224,6 +224,8 @@ def a2_q1_experiment():
     config.FMEEnable = True
     config.FastME = True
     plot_a_RD_to_bitrate_curve(config, label="All features on", show_time=True)
+    plt.legend()
+    plt.show()
     
 def a2_q2_experiment():
     """
