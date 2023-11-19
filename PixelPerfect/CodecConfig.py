@@ -16,7 +16,7 @@ class CodecConfig:
         FastME: bool = False,
         nRefFrames: int = 1,
         DisplayBlocks: bool = False,
-        DisplayMvs: bool = False,
+        DisplayMvAndMode: bool = False,
         DisplayRefFrames: bool = False,
     ) -> None:
         self.block_size = block_size
@@ -35,6 +35,6 @@ class CodecConfig:
         self.FastME = FastME
         self.nRefFrames = nRefFrames
         self.DisplayBlocks = DisplayBlocks
-        self.DisplayMvs = DisplayMvs
+        self.DisplayMvAndMode = DisplayMvAndMode
         self.DisplayRefFrames = DisplayRefFrames
-        self.need_display = self.DisplayBlocks or self.DisplayMvs or self.DisplayRefFrames
+        self.need_display = self.DisplayBlocks or self.DisplayMvAndMode or self.DisplayRefFrames

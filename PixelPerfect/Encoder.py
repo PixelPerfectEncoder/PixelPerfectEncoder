@@ -253,7 +253,6 @@ class VideoEncoder(VideoCoder):
         return compressed_data
 
     def process_i_frame(self, frame: ReferenceFrame):
-        self.previous_frames.clear()
         compressed_residual = []
         descriptors = []
         frame_encoder = IntraFrameEncoder(self.height, self.width, self.config, frame.data)

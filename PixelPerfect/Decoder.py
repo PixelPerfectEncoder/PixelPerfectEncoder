@@ -32,6 +32,8 @@ class IntraFrameDecoder(Coder):
             self.display_BW_frame.put_block(row, col, ref_block)
             if self.config.DisplayBlocks:
                 self.display_BW_frame.draw_block(row, col, block_size)
+            if self.config.DisplayMvAndMode:
+                self.display_BW_frame.draw_mode(row, col, block_size, mode)
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frames: Deque[ReferenceFrame], config: CodecConfig) -> None:
@@ -57,7 +59,7 @@ class InterFrameDecoder(Coder):
         self.frame.put_block(row, col, reconstructed_block)
         if self.config.need_display:
             self.display_BW_frame.put_block(row, col, reconstructed_block)
-            if self.config.DisplayMvs:
+            if self.config.DisplayMvAndMode:
                 self.display_BW_frame.draw_mv(row, col, row_mv, col_mv, block_size)
             if self.config.DisplayRefFrames:
                 self.display_Color_frame.draw_ref_frame(row, col, block_size, frame_seq)
@@ -76,6 +78,7 @@ class VideoDecoder(VideoCoder):
         block_seq = 0
         sub_block_seq = 0
         last_row_mv, last_col_mv = 0, 0
+        total_sub_blocks = 0
         for seq, residual in enumerate(compressed_residual):
             if not self.config.VBSEnable:
                 if self.config.FMEEnable:
@@ -88,6 +91,7 @@ class VideoDecoder(VideoCoder):
                 block_seq += 1
             else:
                 is_sub_block = descriptors[seq * 4 + 2] == 1
+                total_sub_blocks += is_sub_block
                 if self.config.FMEEnable:
                     row_mv, col_mv = descriptors[seq * 4] / 2 + last_row_mv, descriptors[seq * 4 + 1] / 2 + last_col_mv
                 else:
@@ -107,7 +111,6 @@ class VideoDecoder(VideoCoder):
         if self.config.need_display:
             if self.config.DisplayRefFrames:
                 img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
-                # img[:, :, 0] = inter_decoder.display_Color_frame.data
                 img[:, :, 1] = inter_decoder.display_Color_frame.data
                 img[:, :, 2] = inter_decoder.display_BW_frame.data
                 img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
@@ -115,10 +118,10 @@ class VideoDecoder(VideoCoder):
                 img = inter_decoder.display_BW_frame.data
             cv2.imshow("", img)
             cv2.waitKey(1)
+        self.sub_block_ratio = (total_sub_blocks / 4) / len(compressed_residual)
         return frame
 
     def process_i_frame(self, compressed_data):
-        self.previous_frames.clear()
         compressed_residual, compressed_descriptors = compressed_data
         descriptors = self.decompress_descriptors(compressed_descriptors)
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
@@ -141,7 +144,7 @@ class VideoDecoder(VideoCoder):
                 
         frame = intra_decoder.frame.to_reference_frame()
         self.frame_processed(frame)
-        if self.config.need_display:            
+        if self.config.need_display:      
             cv2.imshow("", intra_decoder.display_BW_frame.data)
             cv2.waitKey(1)
         return frame

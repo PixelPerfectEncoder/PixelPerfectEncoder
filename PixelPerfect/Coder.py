@@ -203,6 +203,8 @@ class VideoCoder(Coder):
 
     def frame_processed(self, frame):
         self.frame_seq += 1
+        if self.is_i_frame():
+            self.previous_frames.clear()
         self.previous_frames.append(frame)
         
     def is_i_frame(self):
