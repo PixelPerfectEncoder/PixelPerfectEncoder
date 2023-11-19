@@ -331,24 +331,49 @@ def a2_q4_experiment():
         block_size=16,
         block_search_offset=4,
         quant_level=4,
-        RD_lambda=0.3,
-        i_Period=3,
+        RD_lambda=1.5,
+        i_Period=5,
         nRefFrames=1,
         do_dct=True,
         do_quantization=True,
         VBSEnable=True,
-        FMEEnable=True,
+        FMEEnable=False,
         FastME=False,
         DisplayMvAndMode=True,
-        DisplayBlocks=False,
+        DisplayBlocks=True,
         DisplayRefFrames=False,
     )
     filename, height, width = videos["foreman"]
     encoder = VideoEncoder(height, width, config)
     decoder = VideoDecoder(height, width, config)
     for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+        print(seq)
         compressed_data = encoder.process(frame)
         _ = decoder.process(compressed_data)
 
+        time.sleep(1)
+
+def a2_proof_VBS_working():
+    config = CodecConfig(
+        block_size=16,
+        block_search_offset=4,
+        quant_level=4,
+        RD_lambda=0.3,
+        i_Period=5,
+        nRefFrames=1,
+        do_dct=True,
+        do_quantization=True,
+        VBSEnable=True,
+        FMEEnable=False,
+        FastME=False,
+    )
+    plot_a_RD_to_bitrate_curve(config, label="VBS ON, block size is 16", show_time=True)
+    config.VBSEnable = False
+    plot_a_RD_to_bitrate_curve(config, label="VBS OFF, block size is 16", show_time=True)
+    config.block_size = 8
+    plot_a_RD_to_bitrate_curve(config, label="VBS OFF, block size is 8", show_time=True)
+    plt.legend()
+    plt.show()
+    
 def run_tests():
-    a2_q4_experiment()
+    a2_proof_VBS_working()
