@@ -110,12 +110,11 @@ class VideoDecoder(VideoCoder):
                 # img[:, :, 0] = inter_decoder.display_Color_frame.data
                 img[:, :, 1] = inter_decoder.display_Color_frame.data
                 img[:, :, 2] = inter_decoder.display_BW_frame.data
+                img = cv2.cvtColor(img, cv2.COLOR_HSV2BGR)
             else:
                 img = inter_decoder.display_BW_frame.data
-            
-            cv2.imshow("", cv2.cvtColor(img, cv2.COLOR_HSV2BGR))
+            cv2.imshow("", img)
             cv2.waitKey(1)
-
         return frame
 
     def process_i_frame(self, compressed_data):
@@ -142,8 +141,9 @@ class VideoDecoder(VideoCoder):
                 
         frame = intra_decoder.frame.to_reference_frame()
         self.frame_processed(frame)
-        if self.config.need_display:
-            intra_decoder.display_frame.display()
+        if self.config.need_display:            
+            cv2.imshow("", intra_decoder.display_BW_frame.data)
+            cv2.waitKey(1)
         return frame
 
     def process(self, compressed_data):
