@@ -47,7 +47,8 @@ class InterFrameEncoder(Coder):
             )
             best_mae = block.get_mae(best_block)
             has_gain = True
-            while has_gain:
+            within_limit = True
+            while has_gain and within_limit:
                 has_gain = False
                 # do cross area search
                 for ref_block in ref_frame.get_ref_blocks_in_cross_area(best_block):
@@ -56,6 +57,8 @@ class InterFrameEncoder(Coder):
                         best_block = ref_block
                         best_mae = ref_block_mae
                         has_gain = True
+                if has_gain and max(abs(best_block.row - block.row), abs(best_block.col - block.col)) >= self.config.FastME_LIMIT:
+                    within_limit = False
             if best_mae < best_mae_among_all_frames:
                 best_block_among_all_frames = best_block
                 best_mae_among_all_frames = best_mae
