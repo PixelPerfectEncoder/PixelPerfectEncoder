@@ -202,6 +202,8 @@ class IntraFrameEncoder(Coder):
 class VideoEncoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
+        self.bitrate = 0
+
 
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate

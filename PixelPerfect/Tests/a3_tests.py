@@ -1,7 +1,7 @@
 from PixelPerfect.Decoder import VideoDecoder
 from PixelPerfect.Encoder import VideoEncoder
 from PixelPerfect.CodecConfig import CodecConfig
-from PixelPerfect.FileIO import get_media_file_path, dump, load, clean_data, read_frames
+from PixelPerfect.FileIO import get_media_file_path, dump_json, read_frames
 import matplotlib.pyplot as plt
 import time
 
@@ -82,20 +82,34 @@ def e1_table():
         do_dct=True,
         do_quantization=True,
         nRefFrames=1,
-        VBSEnable=1,
-        FMEEnable=1,
         FastME=1,
         FastME_LIMIT=16,
     )
+    video_data = dict()
     for video_name in ["CIF", "QCIF"]:
         filename, height, width = videos[video_name]
+        frame_type_data = dict()
         for i_p in [1, 21]:
+            qp_data = dict()
             config.i_Period = i_p
             for qp in range(12):
                 config.quant_level = qp
                 encoder = VideoEncoder(height, width, config)
-                bit_count = 0
+                total_frames = 0
                 for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
                     compressed_data = encoder.process(frame)
-                    bit_count += len(compressed_data)
+                    total_frames += 1
+                bit_count = encoder.bitrate
+                bit_count /= total_frames
+                bit_count /= (height / 16)
                 print(f"{video_name} i_p={i_p} qp={qp} bit_count={bit_count}")
+                qp_data[qp] = bit_count
+            if i_p == 1:
+                frame_type_data["I"] = qp_data
+            else:
+                frame_type_data["P"] = qp_data
+        video_data[video_name] = frame_type_data
+    
+    dump_json(video_data, "e1_table.json")
+        
+                

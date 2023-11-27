@@ -189,7 +189,6 @@ class VideoCoder(Coder):
         self.frame_seq = 0
         self.previous_frames: Deque[ReferenceFrame] = Deque(maxlen=config.nRefFrames)
         self.previous_frames.append(ReferenceFrame(config, np.full(shape=(self.height, self.width), fill_value=128, dtype=np.uint8)))
-        self.bitrate = 0
         
     def is_p_frame(self):
         if self.config.i_Period == -1:

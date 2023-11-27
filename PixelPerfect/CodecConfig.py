@@ -2,7 +2,7 @@ class CodecConfig:
     def __init__(
         self,
         block_size,
-        block_search_offset,
+        block_search_offset = 2,
         i_Period: int = -1,
         quant_level: int = 2,
         approximated_residual_n: int = 2,
