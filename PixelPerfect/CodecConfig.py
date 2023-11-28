@@ -4,11 +4,9 @@ class CodecConfig:
         block_size,
         block_search_offset = 2,
         i_Period: int = -1,
-        quant_level: int = 2,
+        quant_level: int = 0,
         approximated_residual_n: int = 2,
         do_approximated_residual: bool = False,
-        do_dct: bool = False,
-        do_quantization: bool = False,
         do_entropy: bool = False,
         RD_lambda: float = 0,
         VBSEnable: bool = False,
@@ -19,6 +17,11 @@ class CodecConfig:
         DisplayMvAndMode: bool = False,
         DisplayRefFrames: bool = False,
         FastME_LIMIT: int = -1,
+        RCTable: dict = dict(),
+        RCflag: int = 0,
+        targetBR: float = 0,
+        fps: int = 30,
+        total_frames: int = 0,
     ) -> None:
         self.block_size = block_size
         self.sub_block_size = block_size // 2
@@ -27,8 +30,6 @@ class CodecConfig:
         self.quant_level = quant_level
         self.approximated_residual_n = approximated_residual_n
         self.do_approximated_residual = do_approximated_residual
-        self.do_dct = do_dct
-        self.do_quantization = do_quantization
         self.do_entropy = do_entropy
         self.RD_lambda = RD_lambda
         self.VBSEnable = VBSEnable
@@ -38,5 +39,9 @@ class CodecConfig:
         self.DisplayBlocks = DisplayBlocks
         self.DisplayMvAndMode = DisplayMvAndMode
         self.DisplayRefFrames = DisplayRefFrames
-        self.need_display = self.DisplayBlocks or self.DisplayMvAndMode or self.DisplayRefFrames
         self.FastME_LIMIT = FastME_LIMIT
+        self.RCTable = RCTable
+        self.RCflag = RCflag
+        self.targetBR = targetBR
+        self.fps = fps
+        self.total_frames = total_frames

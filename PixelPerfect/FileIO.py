@@ -43,6 +43,10 @@ def dump_json(data, filename):
     with open(filename, "w") as file:
         json.dump(data, file)
 
+def read_json(filename) -> dict:
+    with open(filename, "r") as file:
+        return json.load(file)
+
 def dump(data):
     id = uuid.uuid4().hex
     with open(dataId2filename(id), "wb") as file:

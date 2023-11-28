@@ -2,6 +2,7 @@ from PixelPerfect.Yuv import YuvBlock, ReferenceFrame
 from PixelPerfect.Coder import Coder, VideoCoder
 from PixelPerfect.Decoder import IntraFrameDecoder, InterFrameDecoder
 from PixelPerfect.CodecConfig import CodecConfig
+from PixelPerfect.BitRateController import BitRateController
 from typing import Deque
 
 class InterFrameEncoder(Coder):
@@ -71,7 +72,7 @@ class InterFrameEncoder(Coder):
             best_ref_frame_seq
         )
 
-    def get_inter_data_normal_search(self, block: YuvBlock):
+    def get_inter_data_normal_search(self, block: YuvBlock) :
         min_mae = float("inf")
         best_i, best_j = None, None
         best_di, best_dj = None, None
@@ -203,7 +204,6 @@ class VideoEncoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
         self.bitrate = 0
-
 
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate

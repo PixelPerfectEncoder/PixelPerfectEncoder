@@ -60,7 +60,7 @@ def simple_test():
     plt.legend()
     plt.show()
 
-def e1_table():
+def create_e1_table():
     """
     Configure your encoder to operate with (nRefFrames=1, VBSEnable=1, FMEEnable=1, and FastME=1),
     using block size = 16x16, bounding the MVs to be within a range of +/-16 pixels around the collocated
@@ -82,6 +82,8 @@ def e1_table():
         do_dct=True,
         do_quantization=True,
         nRefFrames=1,
+        VBSEnable=True,
+        FMEEnable=True,
         FastME=1,
         FastME_LIMIT=16,
     )
@@ -112,4 +114,7 @@ def e1_table():
     
     dump_json(video_data, "e1_table.json")
         
-                
+ 
+def run_e1():
+    pass
+            

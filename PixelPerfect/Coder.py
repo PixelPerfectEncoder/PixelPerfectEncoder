@@ -8,25 +8,41 @@ from typing import Deque
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
-        if config.do_entropy and (not config.do_dct or not config.do_quantization):
+        if config.RCflag == 1:
+            if config.targetBR == 0:
+                raise Exception(
+                    "Error! targetBR must be set when RCflag is enabled"
+                )
+            if config.total_frames == 0:
+                raise Exception(
+                    "Error! total_frames must be set when RCflag is enabled"
+                )
+            try:
+                ok = None
+                if config.i_Period != 0:
+                    ok = config.RCTable['I']
+                    assert len(ok) == 12
+                if config.i_Period != -1:
+                    ok = config.RCTable['P']
+                    assert len(ok) == 12
+            except:
+                raise Exception(
+                    "Error! RCTable must be set when RCflag is enabled"
+                )
+                
+        if config.FastME and config.FastME_LIMIT == -1:
             raise Exception(
-                "Error! Entropy coding can only be enabled when DCT and quantization are enabled"
+                "Error! FastME_LIMIT must be set when FastME is enabled"
             )
-        if config.do_quantization and not config.do_dct:
-            raise Exception(
-                "Error! Quantization can only be enabled when DCT is enabled"
-            )
+        
+        config.need_display = config.DisplayBlocks or config.DisplayMvAndMode or config.DisplayRefFrames
             
         self.config = config
         self.height = height
         self.width = width
         _, padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
         self.row_block_num = padded_width // self.config.block_size
-        self.residual_processor = ResidualProcessor(
-            self.config.block_size,
-            self.config.quant_level,
-            self.config.approximated_residual_n,
-        )
+        self.residual_processor = ResidualProcessor(self.config)
         
     # region Decoding
     def RLE_decoding(self, sequence, block_size):
@@ -71,14 +87,13 @@ class Coder:
         RLE_decoded = self.RLE_decoding(RLE_coded, block_size)
         return RLE_decoded
 
-    def decompress_residual(self, residual, block_size):
+    def decompress_residual(self, residual: np.ndarray, quant_level: int, is_sub_block: bool):
         if self.config.do_entropy:
+            block_size = self.config.sub_block_size if is_sub_block else self.config.block_size
             residual = self.Entrophy_decoding(residual, block_size)
             residual = self.dediagonalize_sequence(residual, block_size)
-        if self.config.do_quantization:
-            residual = self.residual_processor.de_quantization(residual)
-        if self.config.do_dct:
-            residual = self.residual_processor.de_dct(residual)
+        residual = self.residual_processor.de_quantization(residual, quant_level, is_sub_block)
+        residual = self.residual_processor.de_dct(residual)
         return residual
 
     def decompress_descriptors(self, descriptors):
@@ -153,14 +168,12 @@ class Coder:
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
 
-    def compress_residual(self, residual):
+    def compress_residual(self, residual: np.ndarray, quant_level: int, is_sub_block: int):
         bitrate = 0
         if self.config.do_approximated_residual:
             residual = self.residual_processor.approx(residual)
-        if self.config.do_dct:
-            residual = self.residual_processor.dct_transform(residual)
-        if self.config.do_quantization:
-            residual = self.residual_processor.quantization(residual)
+        residual = self.residual_processor.dct_transform(residual)
+        residual = self.residual_processor.quantization(residual, quant_level, is_sub_block)
         if self.config.do_entropy:
             residual = self.diagonalize_matrix(residual)
             residual = self.entrophy_coding(residual)
