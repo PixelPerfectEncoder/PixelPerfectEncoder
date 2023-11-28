@@ -87,12 +87,12 @@ class Coder:
         RLE_decoded = self.RLE_decoding(RLE_coded, block_size)
         return RLE_decoded
 
-    def decompress_residual(self, residual: np.ndarray, quant_level: int, is_sub_block: bool):
+    def decompress_residual(self, residual: np.ndarray, qp: int, is_sub_block: bool):
         if self.config.do_entropy:
             block_size = self.config.sub_block_size if is_sub_block else self.config.block_size
             residual = self.Entrophy_decoding(residual, block_size)
             residual = self.dediagonalize_sequence(residual, block_size)
-        residual = self.residual_processor.de_quantization(residual, quant_level, is_sub_block)
+        residual = self.residual_processor.de_quantization(residual, qp, is_sub_block)
         residual = self.residual_processor.de_dct(residual)
         return residual
 
@@ -168,12 +168,12 @@ class Coder:
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
 
-    def compress_residual(self, residual: np.ndarray, quant_level: int, is_sub_block: int):
+    def compress_residual(self, residual: np.ndarray, qp: int, is_sub_block: int):
         bitrate = 0
         if self.config.do_approximated_residual:
             residual = self.residual_processor.approx(residual)
         residual = self.residual_processor.dct_transform(residual)
-        residual = self.residual_processor.quantization(residual, quant_level, is_sub_block)
+        residual = self.residual_processor.quantization(residual, qp, is_sub_block)
         if self.config.do_entropy:
             residual = self.diagonalize_matrix(residual)
             residual = self.entrophy_coding(residual)

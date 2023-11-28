@@ -1,7 +1,7 @@
 from PixelPerfect.Decoder import VideoDecoder
 from PixelPerfect.Encoder import VideoEncoder
 from PixelPerfect.CodecConfig import CodecConfig
-from PixelPerfect.FileIO import get_media_file_path, dump_json, read_frames
+from PixelPerfect.FileIO import get_media_file_path, dump_json, read_frames, read_json
 import matplotlib.pyplot as plt
 import time
 
@@ -13,16 +13,14 @@ videos = {
     "QCIF": ("QCIF.yuv", 144, 176),
 }
 
-video_name = "CIF"
-
-def plot_a_RD_to_bitrate_curve(config: CodecConfig, label: str, show_time=False, display=True):
-    levels = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+def plot_a_RD_to_bitrate_curve(video_name, config: CodecConfig, label: str, show_time=False, display=True):
+    qps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     last_seq = 10
     R_D = []
     total_time = 0
     filename, height, width = videos[video_name]
-    for level in levels:
-        config.quant_level = level
+    for qp in qps:
+        config.qp = qp
         encoder = VideoEncoder(height, width, config)
         decoder = VideoDecoder(height, width, config)
         psnr_sum = 0
@@ -33,30 +31,54 @@ def plot_a_RD_to_bitrate_curve(config: CodecConfig, label: str, show_time=False,
             decoded_frame = decoder.process(compressed_data)
             decoded_frame.display()
             psnr_sum += frame.PSNR(decoded_frame)
-            
             if seq == last_seq:
+                print(f"{encoder.bitrate} {frame.PSNR(decoded_frame)}")
                 R_D.append((encoder.bitrate, (psnr_sum) / (last_seq + 1)))
                 break
-        print(f"{label}'s QP {level} is processed")
-    x = [R_D[i][0] for i in range(len(levels))]
-    y = [R_D[i][1] for i in range(len(levels))]
+    x = [R_D[i][0] for i in range(len(qps))]
+    y = [R_D[i][1] for i in range(len(qps))]
     if show_time:
-        average_time = total_time / len(levels)
+        average_time = total_time / len(qps)
+        label += f" (average time: {average_time:.2f}s)"
+    plt.plot(x, y, label=label, linewidth=0.5)
+
+def plot_a_RD_to_bitrate_curve_use_bitrate_controller(video_name, config: CodecConfig, label: str, show_time=False, display=True):
+    bitrates = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5]
+    last_seq = 10
+    R_D = []
+    total_time = 0
+    filename, height, width = videos[video_name]
+    for br in bitrates:
+        config.targetBR = br * 1024
+        encoder = VideoEncoder(height, width, config)
+        decoder = VideoDecoder(height, width, config)
+        psnr_sum = 0
+        for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+            t1 = time.time()
+            compressed_data = encoder.process(frame)
+            total_time += time.time() - t1
+            decoded_frame = decoder.process(compressed_data)
+            decoded_frame.display()
+            psnr_sum += frame.PSNR(decoded_frame)
+            if seq == last_seq:
+                print(f"{encoder.bitrate} {frame.PSNR(decoded_frame)}")
+                R_D.append((encoder.bitrate, (psnr_sum) / (last_seq + 1)))
+                break
+    x = [R_D[i][0] for i in range(len(bitrates))]
+    y = [R_D[i][1] for i in range(len(bitrates))]
+    if show_time:
+        average_time = total_time / len(bitrates)
         label += f" (average time: {average_time:.2f}s)"
     plt.plot(x, y, label=label, linewidth=0.5)
 
 def simple_test():
-    filename, height, width = videos["CIF"]
-    R_D = []
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
-        do_dct=True,
-        do_quantization=True,
     )
     for i_p in [4]:
         config.i_Period = i_p
-        plot_a_RD_to_bitrate_curve(config, f"i_Period={i_p}")
+        plot_a_RD_to_bitrate_curve("CIF", config, f"i_Period={i_p}")
     plt.legend()
     plt.show()
 
@@ -95,7 +117,7 @@ def create_e1_table():
             qp_data = dict()
             config.i_Period = i_p
             for qp in range(12):
-                config.quant_level = qp
+                config.qp = qp
                 encoder = VideoEncoder(height, width, config)
                 total_frames = 0
                 for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
@@ -116,5 +138,19 @@ def create_e1_table():
         
  
 def run_e1():
-    pass
+    print(read_json("e1_table.json"))
+    config = CodecConfig(
+        block_size=16,
+        block_search_offset=2,
+        RCflag = 1,
+        RCTable = read_json("e1_table.json")["CIF"],
+        fps = 30,
+        total_frames = 21,
+        targetBR=2.4*1024
+    )
+    for i_p in [4]:
+        config.i_Period = i_p
+        plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", config, f"i_Period={i_p}")
+    plt.legend()
+    plt.show()
             

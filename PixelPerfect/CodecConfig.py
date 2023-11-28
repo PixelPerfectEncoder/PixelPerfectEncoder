@@ -4,7 +4,7 @@ class CodecConfig:
         block_size,
         block_search_offset = 2,
         i_Period: int = -1,
-        quant_level: int = 0,
+        qp: int = 0,
         approximated_residual_n: int = 2,
         do_approximated_residual: bool = False,
         do_entropy: bool = False,
@@ -27,7 +27,7 @@ class CodecConfig:
         self.sub_block_size = block_size // 2
         self.block_search_offset = block_search_offset
         self.i_Period = i_Period
-        self.quant_level = quant_level
+        self.qp = qp
         self.approximated_residual_n = approximated_residual_n
         self.do_approximated_residual = do_approximated_residual
         self.do_entropy = do_entropy

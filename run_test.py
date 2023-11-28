@@ -1,4 +1,4 @@
 from PixelPerfect.Tests.a3_tests import *
 
 if __name__ == "__main__":
-    e1_table()
+    run_e1()

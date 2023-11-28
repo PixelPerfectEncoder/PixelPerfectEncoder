@@ -12,23 +12,23 @@ class ResidualProcessor:
         )
 
     @staticmethod
-    def generate_quant_matrix(block_size: int, quant_level: int):
+    def generate_quant_matrix(block_size: int, qp: int):
         quant_matrix = np.zeros((block_size, block_size), dtype=np.uint32)
         for iy, ix in np.ndindex(quant_matrix.shape):
             if (ix + iy) < block_size - 1:
-                quant_matrix[iy][ix] = math.pow(2, quant_level)
+                quant_matrix[iy][ix] = math.pow(2, qp)
             elif (ix + iy) == block_size - 1:
-                quant_matrix[iy][ix] = math.pow(2, quant_level + 1)
+                quant_matrix[iy][ix] = math.pow(2, qp + 1)
             else:
-                quant_matrix[iy][ix] = math.pow(2, quant_level + 2)
+                quant_matrix[iy][ix] = math.pow(2, qp + 2)
         return quant_matrix
 
     @cache
-    def get_quant_matrix(self, quant_level: int, is_sub_block: bool):
+    def get_quant_matrix(self, qp: int, is_sub_block: bool):
         if is_sub_block:
-            return ResidualProcessor.generate_quant_matrix(self.config.sub_block_size, max(quant_level - 1, 0))
+            return ResidualProcessor.generate_quant_matrix(self.config.sub_block_size, max(qp - 1, 0))
         else:
-            return ResidualProcessor.generate_quant_matrix(self.config.block_size, quant_level)
+            return ResidualProcessor.generate_quant_matrix(self.config.block_size, qp)
     
     def __init__(self, config: CodecConfig):
         self.config = config
@@ -43,14 +43,14 @@ class ResidualProcessor:
         transform = np.rint(transform)
         return transform
 
-    def quantization(self, dct: np.ndarray, quant_level: int, is_sub_block: bool):
-        quant_matrix = self.get_quant_matrix(quant_level, is_sub_block)        
+    def quantization(self, dct: np.ndarray, qp: int, is_sub_block: bool):
+        quant_matrix = self.get_quant_matrix(qp, is_sub_block)        
         quantized = np.divide(dct, quant_matrix)
         quantized = np.rint(quantized)
         return quantized
 
-    def de_quantization(self, data: np.ndarray, quant_level: int, is_sub_block: bool):
-        quant_matrix = self.get_quant_matrix(quant_level, is_sub_block)
+    def de_quantization(self, data: np.ndarray, qp: int, is_sub_block: bool):
+        quant_matrix = self.get_quant_matrix(qp, is_sub_block)
         original = np.multiply(data, quant_matrix)
         return original
 
