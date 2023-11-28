@@ -1,3 +1,4 @@
-from PixelPerfect.Tests import run_tests
+from PixelPerfect.Tests.a3_tests import *
 
-run_tests()
+if __name__ == "__main__":
+    run_e1()

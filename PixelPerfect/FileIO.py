@@ -4,6 +4,7 @@ import os
 from PixelPerfect.Yuv import ReferenceFrame
 from PixelPerfect.CodecConfig import CodecConfig
 import numpy as np
+import json
 
 def read_frames(source_path, height, width, config: CodecConfig):
     height = height
@@ -38,11 +39,18 @@ def get_data_file_path(filename):
 def dataId2filename(id):
     return get_data_file_path(f"{id}.txt")
 
+def dump_json(data, filename):
+    with open(filename, "w") as file:
+        json.dump(data, file)
+
+def read_json(filename) -> dict:
+    with open(filename, "r") as file:
+        return json.load(file)
 
 def dump(data):
     id = uuid.uuid4().hex
     with open(dataId2filename(id), "wb") as file:
-        pickle.dump(data, file)
+        pickle.dump(data, file, indent=4)
     return id
 
 

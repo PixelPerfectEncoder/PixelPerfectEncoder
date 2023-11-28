@@ -15,13 +15,9 @@ class IntraFrameDecoder(Coder):
                 self.display_Color_frame = ConstructingFrame(self.config, height=height, width=width)
 
     # this function should be idempotent
-    def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block):
+    def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block, qp):
         row, col = self.get_position_by_seq(block_seq, sub_block_seq)
-        if is_sub_block:
-            block_size = self.config.sub_block_size
-        else:
-            block_size = self.config.block_size
-        residual = self.decompress_residual(residual, block_size)
+        residual = self.decompress_residual(residual, qp, is_sub_block)
         if mode == 0:  # vertical
             ref_block = self.frame.get_vertical_ref_block(row, col, is_sub_block)
         else:  # horizontal
@@ -29,6 +25,10 @@ class IntraFrameDecoder(Coder):
         ref_block.add_residual(residual)
         self.frame.put_block(row, col, ref_block)
         if self.config.need_display:
+            if is_sub_block:
+                block_size = self.config.sub_block_size
+            else:
+                block_size = self.config.block_size
             self.display_BW_frame.put_block(row, col, ref_block)
             if self.config.DisplayBlocks:
                 self.display_BW_frame.draw_block(row, col, block_size)
@@ -46,14 +46,14 @@ class InterFrameDecoder(Coder):
                 self.display_Color_frame = ConstructingFrame(self.config, height=height, width=width)
             
     # this function should be idempotent
-    def process(self, frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block):
+    def process(self, frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block: bool, qp: int):
         ref_frame = self.previous_frames[frame_seq]
         row, col = self.get_position_by_seq(block_seq, sub_block_seq)
+        residual = self.decompress_residual(residual, qp, is_sub_block)
         if is_sub_block:
             block_size = self.config.sub_block_size
         else:
             block_size = self.config.block_size
-        residual = self.decompress_residual(residual, block_size)
         reconstructed_block = ref_frame.get_block_by_mv(row, col, row_mv, col_mv, block_size)
         reconstructed_block.add_residual(residual)
         self.frame.put_block(row, col, reconstructed_block)
@@ -72,7 +72,7 @@ class VideoDecoder(VideoCoder):
         super().__init__(height, width, config)
 
     def process_p_frame(self, compressed_data):
-        compressed_residual, compressed_descriptors = compressed_data
+        compressed_residual, compressed_descriptors, qp = compressed_data
         descriptors = self.decompress_descriptors(compressed_descriptors)
         inter_decoder = InterFrameDecoder(self.height, self.width, self.previous_frames, self.config)
         block_seq = 0
@@ -86,7 +86,7 @@ class VideoDecoder(VideoCoder):
                 else:
                     row_mv, col_mv = descriptors[seq * 3] + last_row_mv, descriptors[seq * 3 + 1] + last_col_mv
                 frame_seq = descriptors[seq * 3 + 2]
-                inter_decoder.process(frame_seq, block_seq, 0, residual, row_mv, col_mv, False)
+                inter_decoder.process(frame_seq, block_seq, 0, residual, row_mv, col_mv, False, qp)
                 last_row_mv, last_col_mv = row_mv, col_mv
                 block_seq += 1
             else:
@@ -97,7 +97,7 @@ class VideoDecoder(VideoCoder):
                 else:
                     row_mv, col_mv = descriptors[seq * 4] + last_row_mv, descriptors[seq * 4 + 1] + last_col_mv
                 frame_seq = descriptors[seq * 4 + 3]
-                inter_decoder.process(frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block)
+                inter_decoder.process(frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block, qp)
                 last_row_mv, last_col_mv = row_mv, col_mv
                 if is_sub_block:
                     sub_block_seq += 1
@@ -123,18 +123,18 @@ class VideoDecoder(VideoCoder):
         return frame
 
     def process_i_frame(self, compressed_data):
-        compressed_residual, compressed_descriptors = compressed_data
+        compressed_residual, compressed_descriptors, qp = compressed_data
         descriptors = self.decompress_descriptors(compressed_descriptors)
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
         block_seq = 0
         sub_block_seq = 0
         for seq, residual in enumerate(compressed_residual):
             if not self.config.VBSEnable:
-                intra_decoder.process(block_seq, 0, residual, descriptors[seq], False)
+                intra_decoder.process(block_seq, 0, residual, descriptors[seq], False, qp)
                 block_seq += 1
             else:
                 is_sub_block = descriptors[seq * 2 + 1] == 1
-                intra_decoder.process(block_seq, sub_block_seq, residual, descriptors[seq * 2], is_sub_block)
+                intra_decoder.process(block_seq, sub_block_seq, residual, descriptors[seq * 2], is_sub_block, qp)
                 if is_sub_block:
                     sub_block_seq += 1
                     if sub_block_seq == 4:
