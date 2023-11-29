@@ -248,7 +248,8 @@ class VideoEncoder(VideoCoder):
 
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         frame_bitrate += descriptors_bitrate
-        self.bitrate_controller.use_bit_count_for_a_frame(frame_bitrate)
+        if self.config.RCflag == 1:
+            self.bitrate_controller.use_bit_count_for_a_frame(frame_bitrate)
         self.bitrate += frame_bitrate
         compressed_data = (compressed_residual, compressed_descriptors, qp)
         decoded_frame = frame_encoder.inter_decoder.frame.to_reference_frame()
@@ -292,7 +293,8 @@ class VideoEncoder(VideoCoder):
                 frame_bitrate += normal_residual_bitrate
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         frame_bitrate += descriptors_bitrate
-        self.bitrate_controller.use_bit_count_for_a_frame(frame_bitrate)
+        if self.config.RCflag == 1:
+            self.bitrate_controller.use_bit_count_for_a_frame(frame_bitrate)
         self.bitrate += frame_bitrate
         compressed_data = (compressed_residual, compressed_descriptors, qp)
         decoded_frame = frame_encoder.intra_decoder.frame.to_reference_frame()

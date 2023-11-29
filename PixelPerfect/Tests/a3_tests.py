@@ -42,9 +42,8 @@ def plot_a_RD_to_bitrate_curve(video_name, config: CodecConfig, label: str, show
         label += f" (average time: {average_time:.2f}s)"
     plt.plot(x, y, label=label, linewidth=0.5)
 
-def plot_a_RD_to_bitrate_curve_use_bitrate_controller(video_name, config: CodecConfig, label: str, show_time=False, display=True):
-    bitrates = [5, 4.5, 4, 3.5, 3, 2.5, 2, 1.5]
-    last_seq = 10
+def plot_a_RD_to_bitrate_curve_use_bitrate_controller(video_name, bitrates, config: CodecConfig, label: str, show_time=False, display=True):
+    last_seq = 21
     R_D = []
     total_time = 0
     filename, height, width = videos[video_name]
@@ -101,8 +100,6 @@ def create_e1_table():
     """
     config = CodecConfig(
         block_size=16,
-        do_dct=True,
-        do_quantization=True,
         nRefFrames=1,
         VBSEnable=True,
         FMEEnable=True,
@@ -135,10 +132,55 @@ def create_e1_table():
         video_data[video_name] = frame_type_data
     
     dump_json(video_data, "e1_table.json")
+    
+def paint_e1_table():
+    """
+    Using the algorithm in part (c) and the same encoder configs you used for stats-collection, encode the
+    sequences targeting a bitrate of 2.4 mbps for the CIF sequence, and 960 kbps for the QCIF one, with
+    I_Period = 1, 4 and 21. Assume sequences have 30 frames per second. In your report, include:
+    
+    Per-frame bit cost and PSNR graphs (for each I_Period and sequence)
+    """
+    config = CodecConfig(
+        block_size=16,
+        nRefFrames=1,
+        VBSEnable=True,
+        FMEEnable=True,
+        FastME=1,
+        FastME_LIMIT=16,
+    )
+    for i_p in [1, 4, 21]:
+        config.i_Period = i_p
+        plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", config, f"i_Period={i_p}, video=CIF", show_time=True)
         
+def vbs_test():
+    config = CodecConfig(
+        block_size=16,
+        i_Period=10,
+    )
+    plot_a_RD_to_bitrate_curve("foreman", config, label="All features off", show_time=True)
+    config.VBSEnable = True
+    config.RD_lambda = 0.3
+    plot_a_RD_to_bitrate_curve("foreman", config, label="VBSEnable", show_time=True)
+    config.VBSEnable = False
+    config.FMEEnable = True
+    plot_a_RD_to_bitrate_curve("foreman", config, label="FMEEnable", show_time=True)
+    config.FMEEnable = False
+    config.FastME = True
+    config.FastME_LIMIT = 16
+    plot_a_RD_to_bitrate_curve("foreman", config, label="FastME", show_time=True)
+    config.FastME = False
+    config.nRefFrames = 3
+    plot_a_RD_to_bitrate_curve("foreman", config, label="nRefFrames = 3", show_time=True)
+    config.VBSEnable = True
+    config.FMEEnable = True
+    config.FastME = True
+    config.FastME_LIMIT = 16
+    plot_a_RD_to_bitrate_curve("foreman", config, label="All features on", show_time=True)
+    plt.legend()
+    plt.show()
  
 def run_e1():
-    print(read_json("e1_table.json"))
     config = CodecConfig(
         block_size=16,
         block_search_offset=2,
