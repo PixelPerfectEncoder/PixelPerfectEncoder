@@ -22,6 +22,8 @@ class CodecConfig:
         targetBR: float = 0,
         fps: int = 30,
         total_frames: int = 0,
+        filename = '',
+        is_firstpass = False,
     ) -> None:
         self.block_size = block_size
         self.sub_block_size = block_size // 2
@@ -45,3 +47,5 @@ class CodecConfig:
         self.targetBR = targetBR
         self.fps = fps
         self.total_frames = total_frames
+        self.filename = filename
+        self.is_firstpass = is_firstpass

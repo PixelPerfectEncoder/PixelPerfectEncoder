@@ -4,46 +4,28 @@ from PixelPerfect.ResidualProcessor import ResidualProcessor
 from PixelPerfect.CodecConfig import CodecConfig
 from bitstring import BitArray, BitStream
 from math import log2, floor
-from typing import Deque
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
-        if config.RCflag == 1:
-            if config.targetBR == 0:
-                raise Exception(
-                    "Error! targetBR must be set when RCflag is enabled"
-                )
-            if config.total_frames == 0:
-                raise Exception(
-                    "Error! total_frames must be set when RCflag is enabled"
-                )
-            try:
-                ok = None
-                if config.i_Period != 0:
-                    ok = config.RCTable['I']
-                    assert len(ok) == 12
-                if config.i_Period != -1:
-                    ok = config.RCTable['P']
-                    assert len(ok) == 12
-            except:
-                raise Exception(
-                    "Error! RCTable must be set when RCflag is enabled"
-                )
-                
-        if config.FastME and config.FastME_LIMIT == -1:
+        if config.do_entropy and (not config.do_dct or not config.do_quantization):
             raise Exception(
-                "Error! FastME_LIMIT must be set when FastME is enabled"
+                "Error! Entropy coding can only be enabled when DCT and quantization are enabled"
             )
-        
-        config.need_display = config.DisplayBlocks or config.DisplayMvAndMode or config.DisplayRefFrames
+        if config.do_quantization and not config.do_dct:
+            raise Exception(
+                "Error! Quantization can only be enabled when DCT is enabled"
+            )
             
         self.config = config
         self.height = height
         self.width = width
         _, padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
         self.row_block_num = padded_width // self.config.block_size
-        self.residual_processor = ResidualProcessor(self.config)
-        self.blocks_per_row = width // config.block_size
+        self.residual_processor = ResidualProcessor(
+            self.config.block_size,
+            self.config.quant_level,
+            self.config.approximated_residual_n,
+        )
         
     # region Decoding
     def RLE_decoding(self, sequence, block_size):
@@ -88,13 +70,14 @@ class Coder:
         RLE_decoded = self.RLE_decoding(RLE_coded, block_size)
         return RLE_decoded
 
-    def decompress_residual(self, residual: np.ndarray, qp: int, is_sub_block: bool):
+    def decompress_residual(self, residual, block_size):
         if self.config.do_entropy:
-            block_size = self.config.sub_block_size if is_sub_block else self.config.block_size
             residual = self.Entrophy_decoding(residual, block_size)
             residual = self.dediagonalize_sequence(residual, block_size)
-        residual = self.residual_processor.de_quantization(residual, qp, is_sub_block)
-        residual = self.residual_processor.de_dct(residual)
+        if self.config.do_quantization:
+            residual = self.residual_processor.de_quantization(residual)
+        if self.config.do_dct:
+            residual = self.residual_processor.de_dct(residual)
         return residual
 
     def decompress_descriptors(self, descriptors):
@@ -169,12 +152,14 @@ class Coder:
         bit_sequence = BitStream().join([BitArray(se=i) for i in sequence])
         return bit_sequence
 
-    def compress_residual(self, residual: np.ndarray, qp: int, is_sub_block: int):
+    def compress_residual(self, residual):
         bitrate = 0
         if self.config.do_approximated_residual:
             residual = self.residual_processor.approx(residual)
-        residual = self.residual_processor.dct_transform(residual)
-        residual = self.residual_processor.quantization(residual, qp, is_sub_block)
+        if self.config.do_dct:
+            residual = self.residual_processor.dct_transform(residual)
+        if self.config.do_quantization:
+            residual = self.residual_processor.quantization(residual)
         if self.config.do_entropy:
             residual = self.diagonalize_matrix(residual)
             residual = self.entrophy_coding(residual)
@@ -201,8 +186,8 @@ class VideoCoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.frame_seq = 0
-        self.previous_frames: Deque[ReferenceFrame] = Deque(maxlen=config.nRefFrames)
-        self.previous_frames.append(ReferenceFrame(config, np.full(shape=(self.height, self.width), fill_value=128, dtype=np.uint8)))
+        self.previous_frame = ReferenceFrame(config, np.full(shape=(self.height, self.width), fill_value=128, dtype=np.uint8))
+        self.bitrate = 0
         
     def is_p_frame(self):
         if self.config.i_Period == -1:
@@ -216,10 +201,8 @@ class VideoCoder(Coder):
 
     def frame_processed(self, frame):
         self.frame_seq += 1
-        if self.is_i_frame():
-            self.previous_frames.clear()
-        self.previous_frames.append(frame)
-        
+        self.previous_frame = frame
+
     def is_i_frame(self):
         return not self.is_p_frame()
     

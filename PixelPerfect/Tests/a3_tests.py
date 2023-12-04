@@ -43,7 +43,7 @@ def plot_a_RD_to_bitrate_curve(video_name, config: CodecConfig, label: str, show
     plt.plot(x, y, label=label, linewidth=0.5)
 
 def plot_a_RD_to_bitrate_curve_use_bitrate_controller(video_name, bitrates, config: CodecConfig, label: str, show_time=False, display=True):
-    last_seq = 21
+    last_seq = 20
     R_D = []
     total_time = 0
     filename, height, width = videos[video_name]
@@ -60,15 +60,17 @@ def plot_a_RD_to_bitrate_curve_use_bitrate_controller(video_name, bitrates, conf
             decoded_frame.display()
             psnr_sum += frame.PSNR(decoded_frame)
             if seq == last_seq:
-                print(f"{encoder.bitrate} {frame.PSNR(decoded_frame)}")
+                # print(f"{encoder.bitrate} {frame.PSNR(decoded_frame)}")
                 R_D.append((encoder.bitrate, (psnr_sum) / (last_seq + 1)))
                 break
-    x = [R_D[i][0] for i in range(len(bitrates))]
-    y = [R_D[i][1] for i in range(len(bitrates))]
-    if show_time:
-        average_time = total_time / len(bitrates)
-        label += f" (average time: {average_time:.2f}s)"
-    plt.plot(x, y, label=label, linewidth=0.5)
+            print(encoder.frame_bitrate/(br*1024*1024//30))
+        print(encoder.bitrate/(br*1024*1024*21//30))
+    # x = [R_D[i][0] for i in range(len(bitrates))]
+    # y = [R_D[i][1] for i in range(len(bitrates))]
+    # if show_time:
+    #     average_time = total_time / len(bitrates)
+    #     label += f" (average time: {average_time:.2f}s)"
+    # plt.plot(x, y, label=label, linewidth=0.5)
 
 def simple_test():
     config = CodecConfig(
@@ -80,6 +82,40 @@ def simple_test():
         plot_a_RD_to_bitrate_curve("CIF", config, f"i_Period={i_p}")
     plt.legend()
     plt.show()
+
+def get_iframe_threshold():
+    config = CodecConfig(
+        block_size=16,
+        nRefFrames=1,
+        VBSEnable=True,
+        FMEEnable=True,
+        FastME=1,
+        FastME_LIMIT=16,
+    )
+    filename, height, width = videos["CIF"]
+    frame_type_data = dict()
+    for i_p in [-1]:
+        qp_data = dict()
+        config.i_Period = i_p
+        threshold = dict()
+        for qp in range(12):
+            config.qp = qp
+            encoder = VideoEncoder(height, width, config)
+            total_frames = 0
+            p = []
+            i = []
+            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+                compressed_data = encoder.process(frame)
+                print(encoder.frame_bitrate)
+                if seq % 7 == 0:
+                    i.append(encoder.frame_bitrate)
+                else:
+                    p.append(encoder.frame_bitrate)
+                prev_bit = encoder.bitrate
+                total_frames += 1
+            threshold[qp] = (min(i) + max(p))/2
+        print(threshold)
+
 
 def create_e1_table():
     """
@@ -110,7 +146,7 @@ def create_e1_table():
     for video_name in ["CIF", "QCIF"]:
         filename, height, width = videos[video_name]
         frame_type_data = dict()
-        for i_p in [1, 21]:
+        for i_p in [1, -1]:
             qp_data = dict()
             config.i_Period = i_p
             for qp in range(12):
@@ -179,20 +215,56 @@ def vbs_test():
     plot_a_RD_to_bitrate_curve("foreman", config, label="All features on", show_time=True)
     plt.legend()
     plt.show()
- 
-def run_e1():
+def a3_e2_test():
     config = CodecConfig(
         block_size=16,
-        block_search_offset=2,
-        RCflag = 1,
+        nRefFrames=1,
+        VBSEnable=True,
+        FMEEnable=True,
+        FastME=1,
+        FastME_LIMIT=16,
+        RCflag=2,
         RCTable = read_json("e1_table.json")["CIF"],
-        fps = 30,
+        targetBR=2.4 * 1024,
+        fps=30,
         total_frames = 21,
-        targetBR=2.4*1024
+        filename = 'CIF'
     )
-    for i_p in [4]:
+    filename, height, width = videos["CIF"]
+    frame_type_data = dict()
+    for i_p in [21]:
         config.i_Period = i_p
-        plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", config, f"i_Period={i_p}")
-    plt.legend()
-    plt.show()
+        threshold = dict()
+        for qp in [3]:
+            config.qp = qp
+            encoder = VideoEncoder(height, width, config)
+            decoder = VideoDecoder(height, width, config)
+            total_frames = 0
+            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+                compressed_data = encoder.process(frame)
+                print(encoder.frame_seq)
+                decoded_frame = decoder.process(compressed_data)
+                decoded_frame.display()
+                print(encoder.frame_bitrate)
+                print(encoder.frame_bitrate / (2.4 * 1024 * 1024 // 30))
+                total_frames += 1
+
+def run_e1():
+    #create_e1_table()
+    # config = CodecConfig(
+    #     block_size=16,
+    #     block_search_offset=2,
+    #     RCflag = 2,
+    #     RCTable = read_json("e1_table.json")["CIF"],
+    #     fps = 30,
+    #     total_frames = 21,
+    #     targetBR=2.4*1024
+    # )
+    # for i_p in [4]:
+    #     config.i_Period = i_p
+    #     plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", [2.4],config, f"i_Period={i_p}")
+    # plt.legend()
+    # plt.show()
+    a3_e2_test()
+    # get_iframe_threshold()
             

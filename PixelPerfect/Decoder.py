@@ -69,17 +69,23 @@ class InterFrameDecoder(Coder):
         
 class VideoDecoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
+        self.pass_token = 0
         super().__init__(height, width, config)
 
     def process_p_frame(self, compressed_data):
-        compressed_residual, compressed_descriptors, qp = compressed_data
+        compressed_residual, compressed_descriptors, qp_list = compressed_data[:3]
         descriptors = self.decompress_descriptors(compressed_descriptors)
         inter_decoder = InterFrameDecoder(self.height, self.width, self.previous_frames, self.config)
         block_seq = 0
         sub_block_seq = 0
         last_row_mv, last_col_mv = 0, 0
         total_sub_blocks = 0
+        if self.config.RCflag == 0:
+            qp = self.config.qp
         for seq, residual in enumerate(compressed_residual):
+            if self.config.RCflag > 0:
+                if block_seq % self.blocks_per_row == 0:
+                    qp = qp_list[block_seq // self.blocks_per_row]
             if not self.config.VBSEnable:
                 if self.config.FMEEnable:
                     row_mv, col_mv = descriptors[seq * 3] / 2 + last_row_mv, descriptors[seq * 3 + 1] / 2 + last_col_mv
@@ -123,12 +129,17 @@ class VideoDecoder(VideoCoder):
         return frame
 
     def process_i_frame(self, compressed_data):
-        compressed_residual, compressed_descriptors, qp = compressed_data
+        compressed_residual, compressed_descriptors, qp_list = compressed_data[:3]
         descriptors = self.decompress_descriptors(compressed_descriptors)
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
         block_seq = 0
         sub_block_seq = 0
+        if self.config.RCflag == 0:
+            qp = self.config.qp
         for seq, residual in enumerate(compressed_residual):
+            if self.config.RCflag > 0:
+                if block_seq % self.blocks_per_row == 0:
+                    qp = qp_list[block_seq//self.blocks_per_row]
             if not self.config.VBSEnable:
                 intra_decoder.process(block_seq, 0, residual, descriptors[seq], False, qp)
                 block_seq += 1
@@ -151,6 +162,8 @@ class VideoDecoder(VideoCoder):
         return frame
 
     def process(self, compressed_data):
+        if self.config.RCflag > 0:
+            self.frame_seq = compressed_data[3]
         if self.is_p_frame():
             return self.process_p_frame(compressed_data)
         else:
