@@ -15,7 +15,7 @@ class BitRateController:
             self.p_frame_bit_count_sorted = [(int(bc), int(qp)) for qp, bc in self.config.RCTable['P'].items()]
             self.p_frame_bit_count_sorted.sort()
             self.i_frame_bit_count_sorted.sort()
-        if self.config.RCflag == 2:
+        if self.config.RCflag > 1:
             if self.config.filename =='QCIF':
                 self.threshold_dic = \
                     {0: 116571.0, 1: 118777.0, 2: 91471.0, 3: 67221.5, 4: 48519.0, 5: 33851.5, 6: 23138.5, 7: 16429.5, 8: 13960.0, 9: 10463.5, 10: 9133.0, 11: 8906.0}
@@ -93,7 +93,7 @@ class BitRateController:
             return self.config.qp
         elif self.config.RCflag == 1:
             return self._find_closest_qp(self._get_budget_per_block_row(), is_i_frame)
-        elif self.config.RCflag == 2:
+        elif self.config.RCflag > 1:
             return self._find_closest_qp(self._get_budget_per_block_row(), is_i_frame)
         else:
             raise Exception("Error! RCflag not supported by BitRateController")

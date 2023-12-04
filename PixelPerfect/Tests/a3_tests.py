@@ -243,8 +243,8 @@ def a3_e2_test():
             for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
                 compressed_data = encoder.process(frame)
                 print(encoder.frame_seq)
-                decoded_frame = decoder.process(compressed_data)
-                decoded_frame.display()
+                # decoded_frame = decoder.process(compressed_data)
+                # decoded_frame.display()
                 print(encoder.frame_bitrate)
                 print(encoder.frame_bitrate / (2.4 * 1024 * 1024 // 30))
                 total_frames += 1

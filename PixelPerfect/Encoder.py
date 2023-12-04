@@ -217,7 +217,17 @@ class VideoEncoder(VideoCoder):
         self.bitrate_controller.refresh_frame()
         self.per_row_bit = []
         row_bit = 0
+        if self.config.is_firstpass:
+            self.vbs_token = []
+            self.mv_list = []
         for block_seq, block in enumerate(frame.get_blocks()):
+            use_sub_blocks = True
+            if self.config.RCflag == 3:
+                if not self.vbs_token.pop(0):
+                    use_sub_blocks = False
+                last_row_mv = self.mv_list[0][0]
+                last_col_mv = self.mv_list[0][1]
+                self.mv_list.pop(0)
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=False)
                 self.bitrate_controller.update_used_rows()
@@ -231,21 +241,21 @@ class VideoEncoder(VideoCoder):
                 normal_last_col_mv,
             ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False, qp=qp)
             normal_bitrate = normal_residual_bitrate + len(normal_descriptors)
-            use_sub_blocks = False
             if self.config.VBSEnable:
-                (
-                    sub_blocks_residual,
-                    sub_blocks_descriptors,
-                    sub_blocks_distortion,
-                    sub_blocks_residual_bitrate,
-                    sub_blocks_last_row_mv,
-                    sub_blocks_last_col_mv,
-                ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=True, qp=qp)
-                sub_blocks_bitrate = sub_blocks_residual_bitrate + len(sub_blocks_descriptors)
-                use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
-                # roll back normal block status
-                if not use_sub_blocks:
-                    _ = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False, qp=qp)
+                if use_sub_blocks:
+                    (
+                        sub_blocks_residual,
+                        sub_blocks_descriptors,
+                        sub_blocks_distortion,
+                        sub_blocks_residual_bitrate,
+                        sub_blocks_last_row_mv,
+                        sub_blocks_last_col_mv,
+                    ) = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=True, qp=qp)
+                    sub_blocks_bitrate = sub_blocks_residual_bitrate + len(sub_blocks_descriptors)
+                    use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
+                    # roll back normal block status
+                    if not use_sub_blocks:
+                        _ = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False, qp=qp)
             block_bitrate = 0
             if use_sub_blocks:
                 compressed_residual += sub_blocks_residual
@@ -266,6 +276,8 @@ class VideoEncoder(VideoCoder):
             if self.config.RCflag > 0:
                 self.bitrate_controller.use_bit_count_for_a_frame(block_bitrate)
             if self.config.is_firstpass:
+                self.vbs_token.append(use_sub_blocks)
+                self.mv_list.append((last_row_mv, last_col_mv))
                 row_bit += block_bitrate
                 if block_seq >0 and (block_seq+1) % self.blocks_per_row == 0:
                     self.per_row_bit.append(row_bit)
@@ -288,6 +300,8 @@ class VideoEncoder(VideoCoder):
         self.bitrate_controller.refresh_frame()
         self.per_row_bit = []
         row_bit = 0
+        if self.config.is_firstpass:
+            self.vbs_token = []
         for block_seq, block in enumerate(frame.get_blocks()):
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=True)
@@ -300,17 +314,21 @@ class VideoEncoder(VideoCoder):
                 normal_residual_bitrate,
             ) = frame_encoder.process(block, block_seq, use_sub_blocks=False, qp=qp)
             normal_bitrate = normal_residual_bitrate + len(normal_descriptors)
-            use_sub_blocks = False
+            use_sub_blocks = True
+            if self.config.RCflag == 3:
+                if not self.vbs_token.pop(0):
+                    use_sub_blocks = False
             if self.config.VBSEnable:
-                (
-                    sub_blocks_residual,
-                    sub_blocks_descriptors,
-                    sub_blocks_distortion,
-                    sub_blocks_residual_bitrate,
-                ) = frame_encoder.process(block, block_seq, use_sub_blocks=True, qp=qp)
-                sub_blocks_bitrate = sub_blocks_residual_bitrate + len(sub_blocks_descriptors)
-                use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
-                # roll back normal block status
+                if use_sub_blocks:
+                    (
+                        sub_blocks_residual,
+                        sub_blocks_descriptors,
+                        sub_blocks_distortion,
+                        sub_blocks_residual_bitrate,
+                    ) = frame_encoder.process(block, block_seq, use_sub_blocks=True, qp=qp)
+                    sub_blocks_bitrate = sub_blocks_residual_bitrate + len(sub_blocks_descriptors)
+                    use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
+                    # roll back normal block status
                 if not use_sub_blocks:
                     _ = frame_encoder.process(block, block_seq, use_sub_blocks=False, qp=qp)
             block_bitrate = 0
@@ -331,6 +349,7 @@ class VideoEncoder(VideoCoder):
             if self.config.RCflag > 0:
                 self.bitrate_controller.use_bit_count_for_a_frame(block_bitrate)
             if self.config.is_firstpass:
+                self.vbs_token.append(use_sub_blocks)
                 row_bit += block_bitrate
                 if block_seq >0 and (block_seq+1) % self.blocks_per_row == 0:
                     self.per_row_bit.append(row_bit)
@@ -345,7 +364,7 @@ class VideoEncoder(VideoCoder):
 
     def process(self, frame: ReferenceFrame):
         'if the rc == 2, we need to pre-execute the encoding first and the determine if is i_frame or p_frame'
-        if self.config.RCflag == 2:
+        if self.config.RCflag > 1:
             if self.frame_seq:
                 self.firstpass_encoder.config.qp = sum(self.qp_list) // len(self.qp_list)
             self.firstpass_encoder.frame_seq = self.frame_seq
@@ -359,6 +378,9 @@ class VideoEncoder(VideoCoder):
             if self.is_p_frame():
                 if first_pass_bit > self.bitrate_controller.threshold_dic[self.firstpass_encoder.config.qp]:
                     self.frame_seq = self.config.i_Period
+            if self.config.RCflag == 3:
+                self.vbs_token = self.firstpass_encoder.vbs_token
+                self.mv_list = self.firstpass_encoder.mv_list
         if self.is_i_frame():
             return self.process_i_frame(frame)
         else:
