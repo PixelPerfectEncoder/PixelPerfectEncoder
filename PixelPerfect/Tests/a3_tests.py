@@ -195,27 +195,38 @@ def run_e1():
         plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", config, f"i_Period={i_p}")
     plt.legend()
     plt.show()
-            
+
+
+def play_CIF(config):
+    filename, height, width = videos["CIF"]
+    encoder = VideoEncoder(height, width, config)
+    decoder = VideoDecoder(height, width, config)
+    for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+        if seq == 5:
+            break
+        compressed_data = encoder.process(frame)
+        decoded_frame = decoder.process(compressed_data)
+        decoded_frame.display()
+ 
 def run_e3():
     config = CodecConfig(
         block_size=16,
         FastME=True,
         FastME_LIMIT=16,
-        FMEEnable=False,
-        VBSEnable=False,
+        FMEEnable=True,
+        VBSEnable=True,
         RD_lambda=0.3,
         nRefFrames=1,
         i_Period=10,
         qp=5,
         ParallelMode=0,
     )
-    filename, height, width = videos["CIF"]
-    encoder = VideoEncoder(height, width, config)
-    decoder = VideoDecoder(height, width, config)
-    for frame in read_frames(get_media_file_path(filename), height, width, config):
-        compressed_data = encoder.process(frame)
-        decoded_frame = decoder.process(compressed_data)
-        decoded_frame.display()
+    play_CIF(config)
+    config.FMEEnable = False
+    play_CIF(config)
+    config.FMEEnable = True
+    config.VBSEnable = False
+    play_CIF(config)
         
 
     

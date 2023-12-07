@@ -142,7 +142,16 @@ class ConstructingFrame(YuvFrame):
             row,
             col,
         )
-        
+    
+    def get_plain_ref_block(self, row, col, is_sub_block: bool) -> YuvBlock:
+        block_size = self.config.sub_block_size if is_sub_block else self.block_size
+        return YuvBlock(
+            np.full((block_size, block_size), 128, dtype=np.uint8),
+            block_size,
+            row,
+            col,
+        )
+    
     def get_vertical_ref_block(self, row, col, is_sub_block: bool) -> YuvBlock:
         block_size = self.config.sub_block_size if is_sub_block else self.block_size
         if row == 0:
@@ -333,6 +342,7 @@ class ReferenceFrame(YuvFrame):
                 fme_col : fme_col + block_size * 2 : 2,
             ]
         else:
+            row_mv, col_mv = int(row_mv), int(col_mv)
             data = self.data[
                 row + row_mv : row + row_mv + block_size,
                 col + col_mv : col + col_mv + block_size,

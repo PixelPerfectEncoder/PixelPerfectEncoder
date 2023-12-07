@@ -11,6 +11,11 @@ class IntraFrameEncoder(Coder):
         self.intra_decoder = IntraFrameDecoder(height, width, config)
             
     def get_intra_data(self, block: YuvBlock):
+        if self.config.ParallelMode == 1:
+            plain_ref = self.intra_decoder.frame.get_plain_ref_block(
+                block.row, block.col, block.block_size == self.config.sub_block_size
+            )
+            return block.get_residual(plain_ref), 0
         vertical_ref = self.intra_decoder.frame.get_vertical_ref_block(
             block.row, block.col, block.block_size == self.config.sub_block_size
         )
