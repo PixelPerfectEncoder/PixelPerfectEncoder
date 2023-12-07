@@ -1,10 +1,9 @@
 import numpy as np
-from PixelPerfect.Yuv import YuvFrame, ReferenceFrame
+from PixelPerfect.Yuv import YuvFrame
 from PixelPerfect.ResidualProcessor import ResidualProcessor
 from PixelPerfect.CodecConfig import CodecConfig
 from bitstring import BitArray, BitStream
 from math import log2, floor
-from typing import Deque
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
@@ -194,32 +193,4 @@ class Coder:
         return descriptors, bitrate
 
     # endregion
-
-
-class VideoCoder(Coder):
-    def __init__(self, height, width, config: CodecConfig) -> None:
-        super().__init__(height, width, config)
-        self.frame_seq = 0
-        self.previous_frames: Deque[ReferenceFrame] = Deque(maxlen=config.nRefFrames)
-        self.previous_frames.append(ReferenceFrame(config, np.full(shape=(self.height, self.width), fill_value=128, dtype=np.uint8)))
-        
-    def is_p_frame(self):
-        if self.config.i_Period == -1:
-            return True
-        if self.config.i_Period == 0:
-            return False
-        if self.frame_seq % self.config.i_Period == 0:
-            return False
-        else:
-            return True
-
-    def frame_processed(self, frame):
-        self.frame_seq += 1
-        if self.is_i_frame():
-            self.previous_frames.clear()
-        self.previous_frames.append(frame)
-        
-    def is_i_frame(self):
-        return not self.is_p_frame()
-    
     

@@ -1,5 +1,5 @@
-from PixelPerfect.Decoder import VideoDecoder
-from PixelPerfect.Encoder import VideoEncoder
+from PixelPerfect.VideoDecoder import VideoDecoder
+from PixelPerfect.VideoEncoder import VideoEncoder
 from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.FileIO import get_media_file_path, dump_json, read_frames, read_json
 import matplotlib.pyplot as plt
@@ -196,3 +196,26 @@ def run_e1():
     plt.legend()
     plt.show()
             
+def run_e3():
+    config = CodecConfig(
+        block_size=16,
+        FastME=True,
+        FastME_LIMIT=16,
+        FMEEnable=False,
+        VBSEnable=False,
+        RD_lambda=0.3,
+        nRefFrames=1,
+        i_Period=10,
+        qp=5,
+        ParallelMode=0,
+    )
+    filename, height, width = videos["CIF"]
+    encoder = VideoEncoder(height, width, config)
+    decoder = VideoDecoder(height, width, config)
+    for frame in read_frames(get_media_file_path(filename), height, width, config):
+        compressed_data = encoder.process(frame)
+        decoded_frame = decoder.process(compressed_data)
+        decoded_frame.display()
+        
+
+    
