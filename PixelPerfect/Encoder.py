@@ -223,7 +223,7 @@ class VideoEncoder(VideoCoder):
         for block_seq, block in enumerate(frame.get_blocks()):
             use_sub_blocks = True
             if self.config.RCflag == 3:
-                if not self.vbs_token.pop(0):
+                if not self.vbs_token[block_seq]:
                     use_sub_blocks = False
                 last_row_mv = self.mv_list[0][0]
                 last_col_mv = self.mv_list[0][1]
@@ -254,25 +254,25 @@ class VideoEncoder(VideoCoder):
                     sub_blocks_bitrate = sub_blocks_residual_bitrate + len(sub_blocks_descriptors)
                     use_sub_blocks = self.calculate_RDO(normal_bitrate, normal_distortion) > self.calculate_RDO(sub_blocks_bitrate, sub_blocks_distortion)
                     # roll back normal block status
-                    if not use_sub_blocks:
-                        _ = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False, qp=qp)
+                if not use_sub_blocks:
+                    _ = frame_encoder.process(block, block_seq, last_row_mv, last_col_mv, use_sub_blocks=False, qp=qp)
+            else:
+                use_sub_blocks = False
             block_bitrate = 0
             if use_sub_blocks:
                 compressed_residual += sub_blocks_residual
                 descriptors += sub_blocks_descriptors
                 descriptor_bitrate = self.cal_entrophy_bitcount(sub_blocks_descriptors)
-                frame_bitrate += sub_blocks_residual_bitrate
-                frame_bitrate += descriptor_bitrate
                 block_bitrate = sub_blocks_residual_bitrate + descriptor_bitrate
+                frame_bitrate += block_bitrate
                 last_row_mv, last_col_mv = sub_blocks_last_row_mv, sub_blocks_last_col_mv
             else:
                 compressed_residual += normal_residual
                 descriptors += normal_descriptors
                 descriptor_bitrate = self.cal_entrophy_bitcount(normal_descriptors)
-                frame_bitrate += normal_residual_bitrate
-                frame_bitrate += descriptor_bitrate
                 last_row_mv, last_col_mv = normal_last_row_mv, normal_last_col_mv
                 block_bitrate = normal_residual_bitrate + descriptor_bitrate
+                frame_bitrate += block_bitrate
             if self.config.RCflag > 0:
                 self.bitrate_controller.use_bit_count_for_a_frame(block_bitrate)
             if self.config.is_firstpass:
@@ -316,7 +316,7 @@ class VideoEncoder(VideoCoder):
             normal_bitrate = normal_residual_bitrate + len(normal_descriptors)
             use_sub_blocks = True
             if self.config.RCflag == 3:
-                if not self.vbs_token.pop(0):
+                if not self.vbs_token[block_seq]:
                     use_sub_blocks = False
             if self.config.VBSEnable:
                 if use_sub_blocks:
@@ -331,21 +331,21 @@ class VideoEncoder(VideoCoder):
                     # roll back normal block status
                 if not use_sub_blocks:
                     _ = frame_encoder.process(block, block_seq, use_sub_blocks=False, qp=qp)
+            else:
+                use_sub_blocks = False
             block_bitrate = 0
             if use_sub_blocks:
                 compressed_residual += sub_blocks_residual
                 descriptors += sub_blocks_descriptors
                 descriptor_bitrate = self.cal_entrophy_bitcount(sub_blocks_descriptors)
-                frame_bitrate += sub_blocks_residual_bitrate
-                frame_bitrate += descriptor_bitrate
                 block_bitrate = sub_blocks_residual_bitrate + descriptor_bitrate
+                frame_bitrate += block_bitrate
             else:
                 compressed_residual += normal_residual
                 descriptors += normal_descriptors
                 descriptor_bitrate = self.cal_entrophy_bitcount(normal_descriptors)
-                frame_bitrate += normal_residual_bitrate
-                frame_bitrate += descriptor_bitrate
                 block_bitrate = normal_residual_bitrate + descriptor_bitrate
+                frame_bitrate += block_bitrate
             if self.config.RCflag > 0:
                 self.bitrate_controller.use_bit_count_for_a_frame(block_bitrate)
             if self.config.is_firstpass:
