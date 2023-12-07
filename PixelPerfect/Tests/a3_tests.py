@@ -404,6 +404,7 @@ def run_e1():
     #     plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", [2.4],config, f"i_Period={i_p}")
     # plt.legend()
     # plt.show()
+    
     a3_e2_test_part2()
     # get_iframe_threshold()
             
