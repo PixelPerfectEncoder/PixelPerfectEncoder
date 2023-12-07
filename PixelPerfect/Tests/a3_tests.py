@@ -87,7 +87,7 @@ def get_iframe_threshold():
     config = CodecConfig(
         block_size=16,
         nRefFrames=1,
-        VBSEnable=True,
+        VBSEnable=False,
         FMEEnable=True,
         FastME=1,
         FastME_LIMIT=16,
@@ -137,7 +137,7 @@ def create_e1_table():
     config = CodecConfig(
         block_size=16,
         nRefFrames=1,
-        VBSEnable=True,
+        VBSEnable=False,
         FMEEnable=True,
         FastME=1,
         FastME_LIMIT=16,
@@ -167,7 +167,7 @@ def create_e1_table():
                 frame_type_data["P"] = qp_data
         video_data[video_name] = frame_type_data
     
-    dump_json(video_data, "e1_table.json")
+    dump_json(video_data, "e1_table_vbs_false.json")
     
 def paint_e1_table():
     """
@@ -215,16 +215,16 @@ def vbs_test():
     plot_a_RD_to_bitrate_curve("foreman", config, label="All features on", show_time=True)
     plt.legend()
     plt.show()
-def a3_e2_test():
+def a3_e1_test():
     config = CodecConfig(
         block_size=16,
         nRefFrames=1,
-        VBSEnable=True,
+        VBSEnable=False,
         FMEEnable=True,
         FastME=1,
         FastME_LIMIT=16,
-        RCflag=2,
-        RCTable = read_json("e1_table.json")["CIF"],
+        RCflag=0,
+        RCTable = read_json("e1_table_vbs_false.json")["CIF"],
         targetBR=2.4 * 1024,
         fps=30,
         total_frames = 21,
@@ -232,10 +232,141 @@ def a3_e2_test():
     )
     filename, height, width = videos["CIF"]
     frame_type_data = dict()
+    plt.figure()
     for i_p in [21]:
         config.i_Period = i_p
         threshold = dict()
-        for qp in [3]:
+        bitcount_list = []
+        PSNR_list = []
+        for qp in [4]:
+            config.qp = qp
+            encoder = VideoEncoder(height, width, config)
+            decoder = VideoDecoder(height, width, config)
+            total_frames = 0
+            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+                compressed_data = encoder.process(frame)
+                print(encoder.frame_seq)
+                decoded_frame = decoder.process(compressed_data)
+                print(encoder.frame_bitrate)
+                bitcount_list.append(encoder.frame_bitrate)
+                PSNR_list.append(frame.get_psnr(decoded_frame))
+                print(encoder.frame_bitrate / (2.4 * 1024 * 1024 // 30))
+                total_frames += 1
+        print(sum(bitcount_list)/(2.4 * 1024 * 1024 *21 // 30))
+        x = [i for i in range(1,22)]
+        y = [bitcount_list[i] for i in range(len(bitcount_list))]
+        plt.xlabel("frame_sequence")
+        plt.ylabel("bitcounts")
+        plt.plot(x, y, label = "i_period="+str(i_p), linewidth=0.5)
+        plt.legend(loc='best')
+
+    plt.savefig("PSNR_perframe_QCIF.png")
+
+def a3_e2_test():
+    config = CodecConfig(
+        block_size=16,
+        nRefFrames=1,
+        VBSEnable=False,
+        FMEEnable=True,
+        FastME=1,
+        FastME_LIMIT=16,
+        RCflag=0,
+        RCTable = read_json("e1_table_vbs_false.json")["CIF"],
+        targetBR=2.4 * 1024,
+        fps=30,
+        total_frames = 21,
+        filename = 'CIF'
+
+    )
+    filename, height, width = videos["CIF"]
+    frame_type_data = dict()
+    plt.figure()
+    config.i_Period = 21
+    time_list = []
+    for RC in [0,1,2,3]:
+        if RC==0:
+            config.RCflag = 0
+            PSNR_ = []
+            bitcount_list = []
+            for qp in [3,6,9]:
+                time_now = time.time()
+                config.qp = qp
+                encoder = VideoEncoder(height, width, config)
+                decoder = VideoDecoder(height, width, config)
+                PSNR_list = []
+                for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+                    compressed_data = encoder.process(frame)
+                    decoded_frame = decoder.process(compressed_data)
+                    PSNR_list.append(frame.get_psnr(decoded_frame))
+                time_list.append(time.time()-time_now)
+                bitcount_list.append(encoder.bitrate)
+                PSNR_.append(sum(PSNR_list)/len(PSNR_list))
+            x = [bitcount_list[i] for i in range(len(bitcount_list))]
+            y = [PSNR_[i] for i in range(len(PSNR_))]
+            plt.xlabel("bitcounts")
+            plt.ylabel("PSNR")
+            plt.plot(x, y, label='RC=0', linewidth=0.5)
+        else:
+            config.RCflag = RC
+            bitcount_list = []
+            PSNR_list_ = []
+            config.qp = 4
+            for size in [0.96,2.4,7]:
+                if RC>1:
+                    if size == 0.96:
+                        config.qp = 6
+                    if size == 2.4:
+                        config.qp = 3
+                    if size == 7:
+                        config.qp = 1
+                time_now = time.time()
+                config.targetBR = size*1024
+                encoder = VideoEncoder(height, width, config)
+                PSNR_list = []
+                for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+                    compressed_data = encoder.process(frame)
+                    print(encoder.frame_seq)
+                    print(encoder.frame_bitrate)
+                    PSNR_list.append(frame.get_psnr(encoder.previous_frames[0]))
+                    print(encoder.frame_bitrate / (size * 1024 * 1024 // 30))
+                bitcount_list.append(encoder.bitrate)
+                PSNR_list_.append(sum(PSNR_list)/len(PSNR_list))
+                time_list.append(time.time() - time_now)
+            y = [PSNR_list_[i] for i in range(len(PSNR_list_))]
+            x = [bitcount_list[i] for i in range(len(bitcount_list))]
+            plt.xlabel("bitcounts")
+            plt.ylabel("PSNR")
+            plt.plot(x, y, label = "RC="+str(RC), linewidth=0.5)
+
+    print(time_list)
+    plt.legend(loc='best')
+    plt.savefig("R-D.png")
+    plt.show()
+def a3_e2_test_part2():
+    config = CodecConfig(
+        block_size=16,
+        nRefFrames=1,
+        VBSEnable=False,
+        FMEEnable=True,
+        FastME=1,
+        FastME_LIMIT=16,
+        RCflag=0,
+        RCTable = read_json("e1_table_vbs_false.json")["CIF"],
+        targetBR=2 * 1024,
+        fps=30,
+        total_frames = 21,
+        filename = 'CIF'
+    )
+    filename, height, width = videos["CIF"]
+    frame_type_data = dict()
+    plt.figure()
+    config.i_Period = 21
+    for RC in [1,2,3]:
+        config.RCflag = RC
+        threshold = dict()
+        bitcount_list = []
+        PSNR_list = []
+        for qp in [4]:
             config.qp = qp
             encoder = VideoEncoder(height, width, config)
             decoder = VideoDecoder(height, width, config)
@@ -244,13 +375,21 @@ def a3_e2_test():
                 compressed_data = encoder.process(frame)
                 print(encoder.frame_seq)
                 # decoded_frame = decoder.process(compressed_data)
-                # decoded_frame.display()
                 print(encoder.frame_bitrate)
-                print(encoder.frame_bitrate / (2.4 * 1024 * 1024 // 30))
+                bitcount_list.append(encoder.frame_bitrate)
+                PSNR_list.append(frame.get_psnr(encoder.previous_frames[0]))
+                print(encoder.frame_bitrate / (2 * 1024 * 1024 // 30))
                 total_frames += 1
-
+        x = [i for i in range(1,22)]
+        y = [PSNR_list[i] for i in range(len(PSNR_list))]
+        plt.xlabel("frame_sequence")
+        plt.ylabel("PSNR")
+        plt.plot(x, y, label = "RC="+str(RC), linewidth=0.5)
+        plt.legend(loc='best')
+    plt.show()
+    plt.savefig("PSNR_perframe_QCIF.png")
 def run_e1():
-    #create_e1_table()
+    # create_e1_table()
     # config = CodecConfig(
     #     block_size=16,
     #     block_search_offset=2,
@@ -265,6 +404,6 @@ def run_e1():
     #     plot_a_RD_to_bitrate_curve_use_bitrate_controller("CIF", [2.4],config, f"i_Period={i_p}")
     # plt.legend()
     # plt.show()
-    a3_e2_test()
+    a3_e2_test_part2()
     # get_iframe_threshold()
             

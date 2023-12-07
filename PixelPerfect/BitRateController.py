@@ -16,12 +16,18 @@ class BitRateController:
             self.p_frame_bit_count_sorted.sort()
             self.i_frame_bit_count_sorted.sort()
         if self.config.RCflag > 1:
+            # if self.config.filename =='QCIF':
+            #     self.threshold_dic = \
+            #         {0: 116571.0, 1: 118777.0, 2: 91471.0, 3: 67221.5, 4: 48519.0, 5: 33851.5, 6: 23138.5, 7: 16429.5, 8: 13960.0, 9: 10463.5, 10: 9133.0, 11: 8906.0}
+            # elif self.config.filename == 'CIF':
+            #     self.threshold_dic = \
+            #         {0: 455288.5, 1: 460389.0, 2: 346074.0, 3: 243604.0, 4: 162351.0, 5: 103956.0, 6: 69749.0, 7: 53619.0, 8: 45148.0, 9: 38459.0, 10: 34059.0, 11: 33381.0}
             if self.config.filename =='QCIF':
                 self.threshold_dic = \
                     {0: 116571.0, 1: 118777.0, 2: 91471.0, 3: 67221.5, 4: 48519.0, 5: 33851.5, 6: 23138.5, 7: 16429.5, 8: 13960.0, 9: 10463.5, 10: 9133.0, 11: 8906.0}
             elif self.config.filename == 'CIF':
                 self.threshold_dic = \
-                    {0: 455288.5, 1: 460389.0, 2: 346074.0, 3: 243604.0, 4: 162351.0, 5: 103956.0, 6: 69749.0, 7: 53619.0, 8: 45148.0, 9: 38459.0, 10: 34059.0, 11: 33381.0}
+                    {0: 453831.5, 1: 344160.0, 2: 240720.5, 3: 160868.5, 4: 97302.0, 5: 54089.0, 6: 29487.0, 7: 17770.0, 8: 12313.5, 9: 10084.0, 10: 9549.5, 11: 10362.5}
             self.left_budget = int(self.config.targetBR * 1024 * (self.config.total_frames / self.config.fps))
             self.budget_per_frame = int(
                 self.config.targetBR * 1024 * (self.config.total_frames / self.config.fps) / self.config.total_frames)
@@ -82,11 +88,7 @@ class BitRateController:
         if index == len(bit_count):
             return bit_count[-1][1]
         before, before_qp = bit_count[index - 1]
-        after, after_qp = bit_count[index]
-        if after - budget <= budget - before:
-            return after_qp
-        else:
-            return before_qp
+        return before_qp
     
     def get_qp(self, is_i_frame) -> int:
         if self.config.RCflag == 0:
