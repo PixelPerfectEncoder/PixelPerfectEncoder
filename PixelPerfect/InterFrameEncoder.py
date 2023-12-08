@@ -99,9 +99,8 @@ class InterFrameEncoder(Coder):
         compressed_residual = []
         descriptors = []
         residual_bitrate = 0
-        block_seq = self.get_seq_by_position(block.row, block.col)
         if use_sub_blocks:
-            for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
+            for sub_block in block.get_sub_blocks():
                 if self.config.ParallelMode == 1:
                     last_row_mv, last_col_mv = 0, 0
                 residual, row_mv, col_mv, frame_seq = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
@@ -117,7 +116,15 @@ class InterFrameEncoder(Coder):
                 descriptors.append(1)
                 descriptors.append(frame_seq)
                 last_row_mv, last_col_mv = row_mv, col_mv
-                self.inter_decoder.process(frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block=True)
+                self.inter_decoder.process(
+                    frame_seq=frame_seq, 
+                    row=sub_block.row, 
+                    col=sub_block.col,
+                    residual=residual, 
+                    row_mv=row_mv, 
+                    col_mv=col_mv, 
+                    is_sub_block=True
+                )
         else:
             residual, row_mv, col_mv, frame_seq = self.get_inter_data(block, last_row_mv, last_col_mv)
             residual, bitrate = self.compress_residual(residual, self.config.qp, is_sub_block=False)
@@ -133,7 +140,15 @@ class InterFrameEncoder(Coder):
                 descriptors.append(0)
             descriptors.append(frame_seq)
             last_row_mv, last_col_mv = row_mv, col_mv
-            self.inter_decoder.process(frame_seq, block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
+            self.inter_decoder.process(
+                frame_seq=frame_seq, 
+                row=block.row, 
+                col=block.col, 
+                residual=residual, 
+                row_mv=row_mv, 
+                col_mv=col_mv, 
+                is_sub_block=False
+            )
         reconstructed_block = self.inter_decoder.frame.get_block(block.row, block.col, is_sub_block=False)
         distortion = block.get_SAD(reconstructed_block)
         return (

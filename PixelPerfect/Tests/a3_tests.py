@@ -240,6 +240,7 @@ def true_cpu_parallelism_verfication():
     two_threads(30)
     one_thread(30)
 
+
 def run_e3():
     config = CodecConfig(
         block_size=16,
@@ -249,29 +250,41 @@ def run_e3():
         VBSEnable=True,
         RD_lambda=0.3,
         nRefFrames=1,
-        i_Period=10,
+        i_Period=3,
         qp=5,
         ParallelMode=1,
     )
+    def run_and_show_time(config):
+        start = time.time()
+        play_CIF(config)
+        print(f"Time taken: {time.time() - start:.2f}s, ParallelMode={config.ParallelMode}, num_processes={config.num_processes}")    
     
-    start = time.time()
-    config.ParallelMode = 2
-    config.i_Period = 1
-    play_CIF(config)
-    print(f"Two Threads Time taken: {time.time() - start:.2f}s")
     config.ParallelMode = 0
-    start = time.time()
-    play_CIF(config)
-    print(f"Single Thread Time taken: {time.time() - start:.2f}s")
+    config.num_processes = 1
+    run_and_show_time(config)
+    
+    config.ParallelMode = 1
+    config.num_processes = 2
+    run_and_show_time(config)
+    
+    config.ParallelMode = 2
+    config.num_processes = 2
+    run_and_show_time(config)
+    
+    config.ParallelMode = 1
     config.num_processes = 4
-    start = time.time()
-    play_CIF(config)
-    print(f"Four Threads Time taken: {time.time() - start:.2f}s")
-    config.FMEEnable = False
-    play_CIF(config)
-    config.FMEEnable = True
-    config.VBSEnable = False
-    play_CIF(config)
-        
+    run_and_show_time(config)
+    
+    config.ParallelMode = 2
+    config.num_processes = 4
+    run_and_show_time(config)
+    
+    config.ParallelMode = 1
+    config.num_processes = 8
+    run_and_show_time(config)
+    
+    config.ParallelMode = 2
+    config.num_processes = 8
+    run_and_show_time(config)
 
     

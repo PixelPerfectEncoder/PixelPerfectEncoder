@@ -99,17 +99,7 @@ class Coder:
             descriptors = self.Entrophy_decoding(descriptors)
         return descriptors
 
-    def get_position_by_seq(self, block_seq, sub_block_seq):
-        row = block_seq // self.row_block_num * self.config.block_size
-        col = block_seq % self.row_block_num * self.config.block_size
-        row += (sub_block_seq // 2) * self.config.sub_block_size
-        col += (sub_block_seq % 2) * self.config.sub_block_size
-        return row, col
 
-    def get_seq_by_position(self, row, col):
-        col_seq = col // self.config.block_size
-        row_seq = row // self.config.block_size * self.row_block_num
-        return row_seq + col_seq
 
     # endregion
 

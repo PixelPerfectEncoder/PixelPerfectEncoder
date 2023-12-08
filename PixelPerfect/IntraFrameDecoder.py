@@ -12,9 +12,8 @@ class IntraFrameDecoder(Coder):
                 self.display_Color_frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
 
     # this function should be idempotent
-    def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block, constructing_frame_data):
+    def process(self, row, col, residual, mode, is_sub_block, constructing_frame_data):
         self.frame = ConstructingFrame(self.config, constructing_frame_data)
-        row, col = self.get_position_by_seq(block_seq, sub_block_seq)
         residual = self.decompress_residual(residual, self.config.qp, is_sub_block)
         if self.config.ParallelMode == 1:
             ref_block = self.frame.get_plain_ref_block(row, col, is_sub_block)

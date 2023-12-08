@@ -33,15 +33,19 @@ class IntraFrameEncoder(Coder):
         compressed_residual = []
         descriptors = []
         residual_bitrate = 0
-        block_seq = self.get_seq_by_position(block.row, block.col)
         if use_sub_blocks:
-            for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
+            for sub_block in block.get_sub_blocks():
                 residual, mode = self.get_intra_data(sub_block, constructing_frame)
                 residual, bitrate = self.compress_residual(residual, self.config.qp, is_sub_block=True)
                 residual_bitrate += bitrate
-                self.intra_decoder.process(block_seq, sub_block_seq, residual, mode, 
-                                           is_sub_block=True, 
-                                           constructing_frame_data=constructing_frame_data)
+                self.intra_decoder.process(
+                    row=sub_block.row, 
+                    col=sub_block.col, 
+                    residual=residual, 
+                    mode=mode, 
+                    is_sub_block=True, 
+                    constructing_frame_data=constructing_frame_data
+                )
                 compressed_residual.append(residual)
                 descriptors.append(mode)
                 descriptors.append(1)
@@ -49,9 +53,14 @@ class IntraFrameEncoder(Coder):
             residual, mode = self.get_intra_data(block, constructing_frame)
             residual, bitrate = self.compress_residual(residual, self.config.qp, is_sub_block=False)
             residual_bitrate += bitrate
-            self.intra_decoder.process(block_seq, 0, residual, mode, 
-                                       is_sub_block=False, 
-                                       constructing_frame_data=constructing_frame_data)
+            self.intra_decoder.process(
+                row=block.row, 
+                col=block.col, 
+                residual=residual, 
+                mode=mode, 
+                is_sub_block=False, 
+                constructing_frame_data=constructing_frame_data
+            )
             compressed_residual.append(residual)
             descriptors.append(mode)
             if self.config.VBSEnable:

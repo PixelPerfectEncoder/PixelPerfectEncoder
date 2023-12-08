@@ -15,9 +15,8 @@ class InterFrameDecoder(Coder):
                 self.display_Color_frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
             
     # this function should be idempotent
-    def process(self, frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block: bool):
+    def process(self, frame_seq, row, col, residual, row_mv, col_mv, is_sub_block: bool):
         ref_frame = self.previous_frames[frame_seq]
-        row, col = self.get_position_by_seq(block_seq, sub_block_seq)
         residual = self.decompress_residual(residual, self.config.qp, is_sub_block)
         if is_sub_block:
             block_size = self.config.sub_block_size

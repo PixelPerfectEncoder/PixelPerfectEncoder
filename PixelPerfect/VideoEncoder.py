@@ -17,11 +17,12 @@ class VideoEncoder(VideoCoder):
         pool = multiprocessing.Pool(processes=self.config.num_processes)
         global shared_mem
         shared_mem = shared_memory.SharedMemory(create=True, size=self.height * self.width)
+        
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate
 
     def p_frame_compare_sub_block_and_normal_block_get_result(self, args):
-        frame_encoder, block, last_row_mv, last_col_mv = args
+        frame_encoder, block, last_row_mv, last_col_mv, shared_mem_name = args
         (
             normal_residual,
             normal_descriptors,
@@ -70,29 +71,51 @@ class VideoEncoder(VideoCoder):
         last_row_mv, last_col_mv = 0, 0
         frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frames, self.config)
         frame_bitrate = 0
+        data = np.ndarray((self.height, self.width), dtype=np.uint8, buffer=shared_mem.buf)
+        data[:] = 0
         if self.config.ParallelMode == 0:
             for block in frame.get_blocks():
+                if block.col == 0:
+                    last_row_mv, last_col_mv = 0, 0
                 (
                     part_compressed_residual, 
                     part_descriptors, 
                     bitrate, 
                     last_row_mv, 
                     last_col_mv
-                ) = self.p_frame_compare_sub_block_and_normal_block_get_result(args=(frame_encoder, block, last_row_mv, last_col_mv))
+                ) = self.p_frame_compare_sub_block_and_normal_block_get_result(args=(frame_encoder, block, last_row_mv, last_col_mv, shared_mem.name))
                 compressed_residual += part_compressed_residual
                 descriptors += part_descriptors
                 frame_bitrate += bitrate
         elif self.config.ParallelMode == 1:
             task_parameters = []
             for block in frame.get_blocks():
-                task_parameters.append((frame_encoder, block, 0, 0))
+                task_parameters.append((frame_encoder, block, 0, 0, shared_mem.name))
             results = pool.map(self.p_frame_compare_sub_block_and_normal_block_get_result, task_parameters)
             for result in results:
                 compressed_residual += result[0]
                 descriptors += result[1]
                 frame_bitrate += result[2]
-        # elif self.config.ParallelMode == 2:
-        #     pass
+        elif self.config.ParallelMode == 2:
+            position_results_pairs = []
+            mv_array = [[None for _ in range(self.width // self.config.block_size)] for _ in range(self.height // self.config.block_size)]
+            for blocks in frame.get_batch_of_blocks_by_diagonal():
+                task_parameters = []
+                for block in blocks:
+                    if block.col == 0:
+                        last_row_mv, last_col_mv = 0, 0
+                    else:
+                        last_row_mv, last_col_mv = mv_array[block.row // self.config.block_size][block.col // self.config.block_size - 1]
+                    task_parameters.append((frame_encoder, block, last_row_mv, last_col_mv, shared_mem.name))
+                results = pool.map(self.p_frame_compare_sub_block_and_normal_block_get_result, task_parameters)
+                for block, result in zip(blocks, results):
+                    position_results_pairs.append(((block.row, block.col), result))
+                    mv_array[block.row // self.config.block_size][block.col // self.config.block_size] = (result[3], result[4])
+            position_results_pairs.sort(key=lambda x: x[0])
+            for _, result in position_results_pairs:
+                compressed_residual += result[0]
+                descriptors += result[1]
+                frame_bitrate += result[2]
         else:
             raise Exception("Unknown ParallelMode")
 
