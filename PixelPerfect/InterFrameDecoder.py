@@ -2,22 +2,23 @@ from PixelPerfect.Yuv import ConstructingFrame, ReferenceFrame
 from PixelPerfect.Coder import Coder
 from PixelPerfect.CodecConfig import CodecConfig
 from typing import Deque
+import numpy as np
 
 class InterFrameDecoder(Coder):
     def __init__(self, height, width, previous_frames: Deque[ReferenceFrame], config: CodecConfig) -> None:
         super().__init__(height, width, config)
         self.previous_frames = previous_frames
-        self.frame = ConstructingFrame(self.config, height=height, width=width)
+        self.frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
         if self.config.need_display:
-            self.display_BW_frame = ConstructingFrame(self.config, height=height, width=width)
+            self.display_BW_frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
             if self.config.DisplayRefFrames:
-                self.display_Color_frame = ConstructingFrame(self.config, height=height, width=width)
+                self.display_Color_frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
             
     # this function should be idempotent
-    def process(self, frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block: bool, qp: int):
+    def process(self, frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block: bool):
         ref_frame = self.previous_frames[frame_seq]
         row, col = self.get_position_by_seq(block_seq, sub_block_seq)
-        residual = self.decompress_residual(residual, qp, is_sub_block)
+        residual = self.decompress_residual(residual, self.config.qp, is_sub_block)
         if is_sub_block:
             block_size = self.config.sub_block_size
         else:

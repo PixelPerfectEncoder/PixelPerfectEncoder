@@ -1,21 +1,21 @@
 from PixelPerfect.Yuv import ConstructingFrame
 from PixelPerfect.Coder import Coder
 from PixelPerfect.CodecConfig import CodecConfig
-
+import numpy as np
 class IntraFrameDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig) -> None:
         super().__init__(height, width, config)
-        self.frame = ConstructingFrame(self.config, height=height, width=width)
-
+        self.frame = None
         if self.config.need_display:
-            self.display_BW_frame = ConstructingFrame(self.config, height=height, width=width)
+            self.display_BW_frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
             if self.config.DisplayRefFrames:
-                self.display_Color_frame = ConstructingFrame(self.config, height=height, width=width)
+                self.display_Color_frame = ConstructingFrame(self.config, np.zeros(shape=[height, width], dtype=np.uint8))
 
     # this function should be idempotent
-    def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block, qp):
+    def process(self, block_seq, sub_block_seq, residual, mode, is_sub_block, constructing_frame_data):
+        self.frame = ConstructingFrame(self.config, constructing_frame_data)
         row, col = self.get_position_by_seq(block_seq, sub_block_seq)
-        residual = self.decompress_residual(residual, qp, is_sub_block)
+        residual = self.decompress_residual(residual, self.config.qp, is_sub_block)
         if self.config.ParallelMode == 1:
             ref_block = self.frame.get_plain_ref_block(row, col, is_sub_block)
         else:

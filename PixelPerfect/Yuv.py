@@ -40,36 +40,10 @@ class YuvBlock:
                 )
 
 class YuvFrame:
-    @staticmethod
-    def get_pad_size(height, width, block_size):
-        pad_height = (
-            block_size - (height % block_size)
-            if height % block_size != 0
-            else 0
-        )
-        pad_width = (
-            block_size - (width % block_size)
-            if width % block_size != 0
-            else 0
-        )
-        return pad_height, pad_width
-    
-    @staticmethod
-    def get_padded_size(height, width, block_size):
-        pad_height, pad_width = YuvFrame.get_pad_size(height, width, block_size)
-        return height + pad_height, width + pad_width
-
     def __init__(self, config: CodecConfig, data: np.ndarray) -> None:
         self.data = data
         self.config = config
         self.block_size = self.config.block_size
-        pad_height, pad_width = YuvFrame.get_pad_size(*self.data.shape, self.block_size)
-        self.data = np.pad(
-            self.data,
-            ((0, pad_height), (0, pad_width)),
-            mode="constant",
-            constant_values=128,
-        )
         self.height, self.width = self.data.shape
         if self.config.DisplayRefFrames:
             self.frame_seq2color = dict()
@@ -123,8 +97,8 @@ class YuvFrame:
 
 
 class ConstructingFrame(YuvFrame):
-    def __init__(self, config: CodecConfig, height, width) -> None:
-        super().__init__(config, np.zeros(shape=[height, width], dtype=np.uint8))
+    def __init__(self, config: CodecConfig, data) -> None:
+        super().__init__(config, data)
 
     def put_block(self, row, col, block: YuvBlock):
         self.data[

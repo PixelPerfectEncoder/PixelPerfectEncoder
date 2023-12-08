@@ -95,7 +95,7 @@ class InterFrameEncoder(Coder):
             return self.get_inter_data_normal_search(block)
 
     # this function should be idempotent
-    def process(self, block: YuvBlock, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool, qp: int):
+    def process(self, block: YuvBlock, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool):
         compressed_residual = []
         descriptors = []
         residual_bitrate = 0
@@ -105,7 +105,7 @@ class InterFrameEncoder(Coder):
                 if self.config.ParallelMode == 1:
                     last_row_mv, last_col_mv = 0, 0
                 residual, row_mv, col_mv, frame_seq = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
-                residual, bitrate = self.compress_residual(residual, qp=qp, is_sub_block=True)
+                residual, bitrate = self.compress_residual(residual, self.config.qp, is_sub_block=True)
                 compressed_residual.append(residual)
                 residual_bitrate += bitrate
                 if self.config.FMEEnable:
@@ -117,10 +117,10 @@ class InterFrameEncoder(Coder):
                 descriptors.append(1)
                 descriptors.append(frame_seq)
                 last_row_mv, last_col_mv = row_mv, col_mv
-                self.inter_decoder.process(frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block=True, qp=qp)
+                self.inter_decoder.process(frame_seq, block_seq, sub_block_seq, residual, row_mv, col_mv, is_sub_block=True)
         else:
             residual, row_mv, col_mv, frame_seq = self.get_inter_data(block, last_row_mv, last_col_mv)
-            residual, bitrate = self.compress_residual(residual, qp=qp, is_sub_block=False)
+            residual, bitrate = self.compress_residual(residual, self.config.qp, is_sub_block=False)
             residual_bitrate += bitrate
             compressed_residual.append(residual)
             if self.config.FMEEnable:
@@ -133,7 +133,7 @@ class InterFrameEncoder(Coder):
                 descriptors.append(0)
             descriptors.append(frame_seq)
             last_row_mv, last_col_mv = row_mv, col_mv
-            self.inter_decoder.process(frame_seq, block_seq, 0, residual, row_mv, col_mv, is_sub_block=False, qp=qp)
+            self.inter_decoder.process(frame_seq, block_seq, 0, residual, row_mv, col_mv, is_sub_block=False)
         reconstructed_block = self.inter_decoder.frame.get_block(block.row, block.col, is_sub_block=False)
         distortion = block.get_SAD(reconstructed_block)
         return (

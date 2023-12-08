@@ -39,8 +39,7 @@ class Coder:
         self.config = config
         self.height = height
         self.width = width
-        _, padded_width = YuvFrame.get_padded_size(height, width, config.block_size)
-        self.row_block_num = padded_width // self.config.block_size
+        self.row_block_num = width // self.config.block_size
         self.residual_processor = ResidualProcessor(self.config)
         
     # region Decoding
