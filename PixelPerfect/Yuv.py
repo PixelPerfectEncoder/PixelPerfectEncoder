@@ -9,6 +9,8 @@ class YuvBlock:
         self.block_size: int = block_size
         self.row: int = row
         self.col: int = col
+        if self.data.shape != (self.block_size, self.block_size):
+            raise Exception(f"Error! Invalid block size {self.data.shape} != {self.block_size}, row: {self.row}, col: {self.col}")
 
     def add_residual(self, residual: np.ndarray):
         self.data = self.data + residual
@@ -124,8 +126,6 @@ class ConstructingFrame(YuvFrame):
         super().__init__(config, np.zeros(shape=[height, width], dtype=np.uint8))
 
     def put_block(self, row, col, block: YuvBlock):
-        if not isclose(row % 1, 0) or not isclose(col % 1, 0):
-            raise Exception(f"Error! Invalid block position {row}, {col}")
         self.data[
             int(row) : int(row) + block.block_size,
             int(col) : int(col) + block.block_size,

@@ -101,6 +101,8 @@ class InterFrameEncoder(Coder):
         residual_bitrate = 0
         if use_sub_blocks:
             for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
+                if self.config.ParallelMode == 1:
+                    last_row_mv, last_col_mv = 0, 0
                 residual, row_mv, col_mv, frame_seq = self.get_inter_data(sub_block, last_row_mv, last_col_mv)
                 residual, bitrate = self.compress_residual(residual, qp=qp, is_sub_block=True)
                 compressed_residual.append(residual)

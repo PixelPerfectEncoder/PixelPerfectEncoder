@@ -1,20 +1,25 @@
 from PixelPerfect.Yuv import ReferenceFrame
 from PixelPerfect.VideoCoder import VideoCoder
+from PixelPerfect.VideoDecoder import VideoDecoder
 from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.BitRateController import BitRateController
 from PixelPerfect.InterFrameEncoder import InterFrameEncoder
 from PixelPerfect.IntraFrameEncoder import IntraFrameEncoder
 from PixelPerfect.CompressedFrameData import CompressedFrameData
+import multiprocessing
+
 class VideoEncoder(VideoCoder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
         self.bitrate = 0
         self.bitrate_controller = BitRateController(height, width, config)
-
+        self.video_decoder = VideoDecoder(height, width, config)
+        
     def calculate_RDO(self, bitrate, distortion):
         return distortion + self.config.RD_lambda * bitrate
 
-    def p_frame_compare_sub_block_and_normal_block_get_result(self, frame_encoder, block, block_seq, last_row_mv, last_col_mv, qp):
+    def p_frame_compare_sub_block_and_normal_block_get_result(self, args):
+        frame_encoder, block, block_seq, last_row_mv, last_col_mv, qp = args
         (
             normal_residual,
             normal_descriptors,
@@ -64,17 +69,32 @@ class VideoEncoder(VideoCoder):
         frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frames, self.config)
         qp = self.bitrate_controller.get_qp(is_i_frame=False)
         frame_bitrate = 0
-        for block_seq, block in enumerate(frame.get_blocks()):
-            (
-                part_compressed_residual, 
-                part_descriptors, 
-                bitrate, 
-                last_row_mv, 
-                last_col_mv
-            ) = self.p_frame_compare_sub_block_and_normal_block_get_result(frame_encoder, block, block_seq, last_row_mv, last_col_mv, qp)
-            compressed_residual += part_compressed_residual
-            descriptors += part_descriptors
-            frame_bitrate += bitrate
+        if self.config.ParallelMode == 0:
+            for block_seq, block in enumerate(frame.get_blocks()):
+                (
+                    part_compressed_residual, 
+                    part_descriptors, 
+                    bitrate, 
+                    last_row_mv, 
+                    last_col_mv
+                ) = self.p_frame_compare_sub_block_and_normal_block_get_result(args=(frame_encoder, block, block_seq, last_row_mv, last_col_mv, qp))
+                compressed_residual += part_compressed_residual
+                descriptors += part_descriptors
+                frame_bitrate += bitrate
+        elif self.config.ParallelMode == 1:
+            pool = multiprocessing.Pool(processes=self.config.num_processes)
+            task_parameters = []
+            for block_seq, block in enumerate(frame.get_blocks()):
+                task_parameters.append((frame_encoder, block, block_seq, 0, 0, qp))
+            results = pool.map(self.p_frame_compare_sub_block_and_normal_block_get_result, task_parameters)
+            pool.close()
+            pool.join()
+            for result in results:
+                compressed_residual += result[0]
+                descriptors += result[1]
+                frame_bitrate += result[2]
+        else:
+            raise Exception("Unknown ParallelMode")
 
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         frame_bitrate += descriptors_bitrate
@@ -82,7 +102,9 @@ class VideoEncoder(VideoCoder):
             self.bitrate_controller.use_bit_count_for_a_frame(frame_bitrate)
         self.bitrate += frame_bitrate
         compressed_data = CompressedFrameData(compressed_residual, compressed_descriptors, qp)
-        decoded_frame = frame_encoder.inter_decoder.frame.to_reference_frame()
+        
+        # decoded_frame = frame_encoder.inter_decoder.frame.to_reference_frame()
+        decoded_frame = self.video_decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
         return compressed_data
 
@@ -142,7 +164,8 @@ class VideoEncoder(VideoCoder):
             self.bitrate_controller.use_bit_count_for_a_frame(frame_bitrate)
         self.bitrate += frame_bitrate
         compressed_data = CompressedFrameData(compressed_residual, compressed_descriptors, qp)
-        decoded_frame = frame_encoder.intra_decoder.frame.to_reference_frame()
+        # decoded_frame = frame_encoder.intra_decoder.frame.to_reference_frame()
+        decoded_frame = self.video_decoder.process(compressed_data)
         self.frame_processed(decoded_frame)
         return compressed_data
 

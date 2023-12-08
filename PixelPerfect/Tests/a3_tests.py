@@ -207,7 +207,39 @@ def play_CIF(config):
         compressed_data = encoder.process(frame)
         decoded_frame = decoder.process(compressed_data)
         decoded_frame.display()
- 
+
+def cpu_intensive_task(total_jobs):
+    import decimal
+    total = 0
+    for _ in range(total_jobs):
+        decimal.getcontext().prec = 20000
+        sqrt_two = decimal.Decimal(2).sqrt()
+        for v in str(sqrt_two):
+            if v != '.':
+                total += int(v)
+    return total
+
+def true_cpu_parallelism_verfication():
+    import multiprocessing
+    def two_threads(jobs):
+        start = time.time()
+        num_processes = 2
+        pool = multiprocessing.Pool(processes=num_processes)
+        task_parameters = [jobs // num_processes for _ in range(num_processes)]
+        pool.map(cpu_intensive_task, task_parameters)
+        pool.close()
+        pool.join()
+        print(f"Time taken: {time.time() - start:.2f}s")
+
+
+    def one_thread(jobs):
+        start = time.time()
+        cpu_intensive_task(jobs)
+        print(f"Time taken: {time.time() - start:.2f}s")
+    
+    two_threads(30)
+    one_thread(30)
+
 def run_e3():
     config = CodecConfig(
         block_size=16,
@@ -219,7 +251,7 @@ def run_e3():
         nRefFrames=1,
         i_Period=10,
         qp=5,
-        ParallelMode=0,
+        ParallelMode=1,
     )
     play_CIF(config)
     config.FMEEnable = False

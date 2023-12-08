@@ -23,6 +23,7 @@ class CodecConfig:
         fps: int = 30,
         total_frames: int = 0,
         ParallelMode: int = 0,
+        num_processes: int = 2,
     ) -> None:
         self.block_size = block_size
         self.sub_block_size = block_size // 2
@@ -47,3 +48,4 @@ class CodecConfig:
         self.fps = fps
         self.total_frames = total_frames
         self.ParallelMode = ParallelMode
+        self.num_processes = num_processes
