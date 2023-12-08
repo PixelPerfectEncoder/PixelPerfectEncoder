@@ -95,10 +95,11 @@ class InterFrameEncoder(Coder):
             return self.get_inter_data_normal_search(block)
 
     # this function should be idempotent
-    def process(self, block: YuvBlock, block_seq: int, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool, qp: int):
+    def process(self, block: YuvBlock, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool, qp: int):
         compressed_residual = []
         descriptors = []
         residual_bitrate = 0
+        block_seq = self.get_seq_by_position(block.row, block.col)
         if use_sub_blocks:
             for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
                 if self.config.ParallelMode == 1:

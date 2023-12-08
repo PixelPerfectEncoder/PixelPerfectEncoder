@@ -30,10 +30,11 @@ class IntraFrameEncoder(Coder):
             return block.get_residual(horizontal_ref), 1
 
     # this function should be idempotent
-    def process(self, block: YuvBlock, block_seq: int, use_sub_blocks: bool, qp: int):
+    def process(self, block: YuvBlock, use_sub_blocks: bool, qp: int):
         compressed_residual = []
         descriptors = []
         residual_bitrate = 0
+        block_seq = self.get_seq_by_position(block.row, block.col)
         if use_sub_blocks:
             for sub_block_seq, sub_block in enumerate(block.get_sub_blocks()):
                 residual, mode = self.get_intra_data(sub_block)

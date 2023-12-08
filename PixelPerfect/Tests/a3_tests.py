@@ -253,7 +253,20 @@ def run_e3():
         qp=5,
         ParallelMode=1,
     )
+    
+    start = time.time()
+    config.ParallelMode = 2
+    config.i_Period = 1
     play_CIF(config)
+    print(f"Two Threads Time taken: {time.time() - start:.2f}s")
+    config.ParallelMode = 0
+    start = time.time()
+    play_CIF(config)
+    print(f"Single Thread Time taken: {time.time() - start:.2f}s")
+    config.num_processes = 4
+    start = time.time()
+    play_CIF(config)
+    print(f"Four Threads Time taken: {time.time() - start:.2f}s")
     config.FMEEnable = False
     play_CIF(config)
     config.FMEEnable = True

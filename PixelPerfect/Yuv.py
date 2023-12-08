@@ -2,6 +2,7 @@ import numpy as np
 import cv2
 from math import log10, sqrt, isclose
 from PixelPerfect.CodecConfig import CodecConfig
+from typing import List
 
 class YuvBlock:
     def __init__(self, data: np.ndarray, block_size: int, row: int, col: int) -> None:
@@ -333,6 +334,39 @@ class ReferenceFrame(YuvFrame):
                 col,
             )
 
+    def get_batch_of_blocks_by_diagonal(self) -> List[YuvBlock]:
+        total_rows = self.height // self.block_size
+        total_cols = self.width // self.block_size
+        for z in range(total_rows + total_cols - 1):
+            res = []
+            for r in range(max(0, z - total_cols + 1), min(total_rows, z + 1)):
+                c = z - r
+                res.append(YuvBlock(
+                    self.data[
+                        r * self.block_size : r * self.block_size + self.block_size,
+                        c * self.block_size : c * self.block_size + self.block_size,
+                    ],
+                    self.block_size,
+                    r * self.block_size,
+                    c * self.block_size,
+                ))
+            yield res
+    
+    def get_batch_of_blocks_by_column(self) -> List[YuvBlock]:
+        for start_col in range(0, self.width, self.block_size):
+            res = []
+            for start_row in range(0, self.height, self.block_size):
+                res.append(YuvBlock(
+                    self.data[
+                        start_row : start_row + self.block_size,
+                        start_col : start_col + self.block_size,
+                    ],
+                    self.block_size,
+                    start_row,
+                    start_col,
+                ))
+            yield res
+        
     def get_block_by_mv(self, row, col, row_mv, col_mv, block_size: int) -> YuvBlock:
         if self.config.FMEEnable:
             fme_row = int(row * 2 + row_mv * 2)
