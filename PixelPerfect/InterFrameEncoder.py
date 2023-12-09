@@ -8,7 +8,7 @@ class InterFrameEncoder(Coder):
     def __init__(self, height, width, previous_frames: Deque[ReferenceFrame], config: CodecConfig):
         super().__init__(height, width, config)
         self.previous_frames = previous_frames
-        self.inter_decoder = InterFrameDecoder(height, width, previous_frames, config)
+        self.inter_decoder = InterFrameDecoder(height, width, config)
 
     def is_better_match_block(
         self, block: YuvBlock, ref_block: YuvBlock, min_mae, best_i, best_j
@@ -95,7 +95,7 @@ class InterFrameEncoder(Coder):
             return self.get_inter_data_normal_search(block)
 
     # this function should be idempotent
-    def process(self, block: YuvBlock, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool):
+    def process(self, block: YuvBlock, last_row_mv: int, last_col_mv: int, use_sub_blocks: bool, constructing_frame_data):
         compressed_residual = []
         descriptors = []
         residual_bitrate = 0
@@ -117,13 +117,14 @@ class InterFrameEncoder(Coder):
                 descriptors.append(frame_seq)
                 last_row_mv, last_col_mv = row_mv, col_mv
                 self.inter_decoder.process(
-                    frame_seq=frame_seq, 
+                    ref_frame=self.previous_frames[frame_seq], 
                     row=sub_block.row, 
                     col=sub_block.col,
                     residual=residual, 
                     row_mv=row_mv, 
                     col_mv=col_mv, 
-                    is_sub_block=True
+                    is_sub_block=True,
+                    constructing_frame_data=constructing_frame_data,
                 )
         else:
             residual, row_mv, col_mv, frame_seq = self.get_inter_data(block, last_row_mv, last_col_mv)
@@ -141,13 +142,14 @@ class InterFrameEncoder(Coder):
             descriptors.append(frame_seq)
             last_row_mv, last_col_mv = row_mv, col_mv
             self.inter_decoder.process(
-                frame_seq=frame_seq, 
-                row=block.row, 
+                ref_frame=self.previous_frames[frame_seq], 
+                row=block.row,
                 col=block.col, 
                 residual=residual, 
                 row_mv=row_mv, 
                 col_mv=col_mv, 
-                is_sub_block=False
+                is_sub_block=False,
+                constructing_frame_data=constructing_frame_data,
             )
         reconstructed_block = self.inter_decoder.frame.get_block(block.row, block.col, is_sub_block=False)
         distortion = block.get_SAD(reconstructed_block)

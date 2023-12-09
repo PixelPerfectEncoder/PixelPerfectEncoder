@@ -34,6 +34,16 @@ class Coder:
                 "Error! FastME_LIMIT must be set when FastME is enabled"
             )
         
+        if config.ParallelMode == 3 and config.nRefFrames != 1:
+            raise Exception(
+                "Error! nRefFrames must be 1 when ParallelMode is 3"
+            )
+        
+        if config.ParallelMode == 3 and config.num_processes != 2:
+            raise Exception(
+                "Error! num_processes must be 2 when ParallelMode is 3"
+            )
+            
         config.need_display = config.DisplayBlocks or config.DisplayMvAndMode or config.DisplayRefFrames
             
         self.config = config

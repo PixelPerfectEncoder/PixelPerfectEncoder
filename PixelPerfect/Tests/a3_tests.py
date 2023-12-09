@@ -198,15 +198,10 @@ def run_e1():
 
 
 def play_CIF(config):
-    filename, height, width = videos["CIF"]
-    encoder = VideoEncoder(height, width, config)
-    decoder = VideoDecoder(height, width, config)
-    for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
-        if seq == 5:
-            break
-        compressed_data = encoder.process(frame)
-        decoded_frame = decoder.process(compressed_data)
-        decoded_frame.display()
+    from PixelPerfect.StreamProducer import StreamProducer
+    producer = StreamProducer(videos["CIF"], config)
+    return producer.get_stream(play_video=True)
+    
 
 def cpu_intensive_task(total_jobs):
     import decimal
@@ -241,6 +236,76 @@ def true_cpu_parallelism_verfication():
     one_thread(30)
 
 
+    
+def mode3_concept_verification():
+    height, width = 288, 352        
+    
+    from multiprocessing import Manager, shared_memory, pool
+    first_frame_mem = shared_memory.SharedMemory(create=True, size=height * width)
+    import numpy as np
+    data = np.ndarray((height, width), dtype=np.uint8, buffer=first_frame_mem.buf)
+    data.fill(1)
+    second_frame_mem = shared_memory.SharedMemory(create=True, size=height * width)
+    thrid_frame_mem = shared_memory.SharedMemory(create=True, size=height * width)
+    manager = Manager()
+    queue = manager.Queue()
+    first_thread = (
+        first_frame_mem.name,
+        second_frame_mem.name,
+        queue,
+        True
+    )
+    second_thread = (
+        second_frame_mem.name,
+        thrid_frame_mem.name,
+        queue,
+        False
+    )
+    pool = pool.Pool(processes=2)
+    pool.map(worker, [first_thread, second_thread])
+    first_frame = np.ndarray((height, width), dtype=np.uint8, buffer=first_frame_mem.buf)
+    second_frame = np.ndarray((height, width), dtype=np.uint8, buffer=second_frame_mem.buf)
+    third_frame = np.ndarray((height, width), dtype=np.uint8, buffer=thrid_frame_mem.buf)
+    print(first_frame)
+    print("=====================================")
+    print(second_frame)
+    print("=====================================")
+    print(third_frame)
+    
+
+def worker(args):
+    height, width = 288, 352
+    import numpy as np
+    from multiprocessing import shared_memory
+    ref_frame_mem_name, current_frame_mem_name, queue, is_first_thread = args
+    ref_frame_mem = shared_memory.SharedMemory(name=ref_frame_mem_name)
+    current_frame_mem = shared_memory.SharedMemory(name=current_frame_mem_name)
+    ref_frame = np.ndarray((height, width), dtype=np.uint8, buffer=ref_frame_mem.buf)
+    current_frame = np.ndarray((height, width), dtype=np.uint8, buffer=current_frame_mem.buf)
+    for row in range(height):
+        for col in range(width):
+            if col == 0:
+                if is_first_thread:
+                    if row != 0:
+                        print(f"queue.put({row - 1})")
+                        queue.put(row - 1)
+                else:         
+                    if row + 1 < height:         
+                        while True:
+                            if not queue.empty():
+                                finished_row = queue.get()
+                                print(f"finished_row={finished_row}")
+                                if finished_row == row + 1:
+                                    break
+                            else:    
+                                time.sleep(0.001)
+            if is_first_thread:
+                current_frame[row, col] = ref_frame[row, col] + row + col
+            else:
+                current_frame[row, col] = ref_frame[row, col] * 2
+    if is_first_thread:
+        queue.put(height - 1)
+    
 def run_e3():
     config = CodecConfig(
         block_size=16,
@@ -258,6 +323,10 @@ def run_e3():
         start = time.time()
         play_CIF(config)
         print(f"Time taken: {time.time() - start:.2f}s, ParallelMode={config.ParallelMode}, num_processes={config.num_processes}")    
+    
+    config.ParallelMode = 3
+    config.num_processes = 2
+    run_and_show_time(config)
     
     config.ParallelMode = 0
     config.num_processes = 1

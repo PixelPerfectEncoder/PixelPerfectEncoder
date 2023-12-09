@@ -1,6 +1,7 @@
 from PixelPerfect.InterFrameDecoder import InterFrameDecoder
 from PixelPerfect.IntraFrameDecoder import IntraFrameDecoder
-from PixelPerfect.VideoCoder import VideoCoder
+from PixelPerfect.Yuv import ReferenceFrame
+from PixelPerfect.Coder import Coder
 from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.CompressedFrameData import CompressedFrameData
 from PixelPerfect.BlockDescriptors import PBlockDescriptors, IBlockDescriptors
@@ -8,7 +9,7 @@ from typing import List
 import numpy as np
 import cv2
 
-class VideoDecoder(VideoCoder):
+class VideoDecoder(Coder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
 
@@ -113,27 +114,27 @@ class VideoDecoder(VideoCoder):
                     block_seq += 1
         return descriptors
             
-    def process_p_frame(self, compressed_data: CompressedFrameData):
+    def process_p_frame(self, compressed_data: CompressedFrameData, previous_frames: List[ReferenceFrame]):
         compressed_residual = compressed_data.residual
         compressed_descriptors = compressed_data.descriptors
         serialize_descriptors = self.decompress_descriptors(compressed_descriptors)
         descriptors = self.deserialize_PFrame_descriptors(serialize_descriptors)
-        inter_decoder = InterFrameDecoder(self.height, self.width, self.previous_frames, self.config)
+        inter_decoder = InterFrameDecoder(self.height, self.width, self.config)
         total_sub_blocks = 0
+        constructing_frame_data = np.zeros(shape=[self.height, self.width], dtype=np.uint8)
         for residual, des in zip(compressed_residual, descriptors):
             inter_decoder.process(
-                frame_seq=des.frame_seq, 
+                ref_frame=previous_frames[des.frame_seq], 
                 row=des.row, 
                 col=des.col, 
                 residual=residual, 
                 row_mv=des.row_mv, 
                 col_mv=des.col_mv, 
-                is_sub_block=des.is_sub_block
+                is_sub_block=des.is_sub_block,
+                constructing_frame_data=constructing_frame_data,
             )
             total_sub_blocks += des.is_sub_block
 
-        frame = inter_decoder.frame.to_reference_frame()
-        self.frame_processed(frame)
         if self.config.need_display:
             if self.config.DisplayRefFrames:
                 img = np.zeros((self.height, self.width, 3), dtype=np.uint8)
@@ -146,6 +147,8 @@ class VideoDecoder(VideoCoder):
             cv2.imshow("", img)
             cv2.waitKey(1)
         self.sub_block_ratio = (total_sub_blocks / 4) / len(compressed_residual)
+        
+        frame = inter_decoder.frame.to_reference_frame()
         return frame
 
     def process_i_frame(self, compressed_data: CompressedFrameData):
@@ -164,15 +167,14 @@ class VideoDecoder(VideoCoder):
                 is_sub_block=des.is_sub_block, 
                 constructing_frame_data=constructing_frame_data
             )
-        frame = intra_decoder.frame.to_reference_frame()
-        self.frame_processed(frame)
         if self.config.need_display:
             cv2.imshow("", intra_decoder.display_BW_frame.data)
             cv2.waitKey(1)
+        frame = intra_decoder.frame.to_reference_frame()
         return frame
 
-    def process(self, compressed_data):
-        if self.is_p_frame():
-            return self.process_p_frame(compressed_data)
-        else:
+    def process(self, compressed_data, is_i_frame: bool, previous_frames: List[ReferenceFrame]):
+        if is_i_frame:
             return self.process_i_frame(compressed_data)
+        else:
+            return self.process_p_frame(compressed_data, previous_frames)
