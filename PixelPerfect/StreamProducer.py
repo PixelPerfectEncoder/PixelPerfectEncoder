@@ -63,10 +63,8 @@ class StreamProducer:
             seq = 0
             another_shared_mem = shared_memory.SharedMemory(create=True, size=height * width)
             while seq < len(original_frames):
-                input("Press Enter to continue...")
                 manager = Manager()
                 queue = manager.Queue()
-
                 if state.is_i_frame(seq) or seq + 1 == len(original_frames):
                     compressed_data = self.encoder.mode_3_process(
                         (
