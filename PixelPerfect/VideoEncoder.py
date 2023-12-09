@@ -145,7 +145,6 @@ class VideoEncoder(Coder):
                 descriptors += part_descriptors
                 frame_bitrate += bitrate
             if is_first_thread:
-                print(f"notify {frame.height}")
                 queue.put(frame.height)
         else:
             raise Exception("Unknown ParallelMode")
