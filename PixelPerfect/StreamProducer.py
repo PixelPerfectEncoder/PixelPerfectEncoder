@@ -5,7 +5,7 @@ from PixelPerfect.Yuv import ReferenceFrame
 from PixelPerfect.FileIO import get_media_file_path, read_frames
 from typing import List
 from multiprocessing import shared_memory, Manager, Pool
-
+from PixelPerfect.CompressedVideoData import CompressedVideoData, StreamMetrics
 class CoderStateManager:
     def __init__(self, config: CodecConfig):
         self.config = config
@@ -32,11 +32,12 @@ class CoderStateManager:
     def get_previous_frames(self, frame_seq):
         return self.reconstructed_frames[max(0, frame_seq - self.config.nRefFrames): frame_seq]
 
+
+
 class StreamProducer:
     def __init__(self, video, config: CodecConfig):
         self.video = video
         _, height, width = video
-        self.encoder = VideoEncoder(height, width, config)
         self.config = config
         self.pool = Pool(processes=self.config.num_processes)
         self.shared_mem = shared_memory.SharedMemory(create=True, size=height * width)
@@ -45,17 +46,20 @@ class StreamProducer:
     def get_stream(self, play_video: bool = False, total_frames: int = -1):
         data_stream = []
         filename, height, width = self.video
+        encoder = VideoEncoder(height, width, self.config)
         decoder = VideoDecoder(height, width, self.config)
         state = CoderStateManager(self.config)
+        psnr_sum = 0
         if self.config.ParallelMode == 0 or self.config.ParallelMode == 1 or self.config.ParallelMode == 2:
             for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, self.config)):
                 if total_frames != -1 and seq >= total_frames:
                     break
-                compressed_data = self.encoder.process(frame, state.is_i_frame(seq), state.get_previous_frames(seq), self.shared_mem.name, self.pool)
+                compressed_data = encoder.process(frame, state.is_i_frame(seq), state.get_previous_frames(seq), self.shared_mem.name, self.pool)
                 data_stream.append(compressed_data)
                 decoded_frame = decoder.process(compressed_data, state.is_i_frame(seq), state.get_previous_frames(seq))
                 if play_video:
                     decoded_frame.display()
+                psnr_sum += frame.PSNR(decoded_frame)
                 state.frame_reconstructed(decoded_frame, seq)
         elif self.config.ParallelMode == 3:
             original_frames = [frame for frame in read_frames(get_media_file_path(filename), height, width, self.config)]
@@ -66,7 +70,7 @@ class StreamProducer:
                 manager = Manager()
                 queue = manager.Queue()
                 if state.is_i_frame(seq) or seq + 1 == len(original_frames):
-                    compressed_data = self.encoder.mode_3_process(
+                    compressed_data = encoder.mode_3_process(
                         (
                             original_frames[seq], 
                             state.is_i_frame(seq), 
@@ -82,6 +86,7 @@ class StreamProducer:
                     decoded_frame = decoder.process(compressed_data, state.is_i_frame(seq), state.get_previous_frames(seq))
                     if play_video:
                         decoded_frame.display()
+                    psnr_sum += original_frames[seq].PSNR(decoded_frame)
                     state.frame_reconstructed(decoded_frame, seq)
                     seq += 1
                     continue
@@ -106,7 +111,7 @@ class StreamProducer:
                     False,
                     self.shared_mem.name # the name of the reference frame shared memory
                 )    
-                results = self.pool.map(self.encoder.mode_3_process, [first_thread, second_thread])
+                results = self.pool.map(encoder.mode_3_process, [first_thread, second_thread])
                 first_data, second_data = results[0], results[1]
                 decoded_first_frame = decoder.process(first_data, state.is_i_frame(seq), state.get_previous_frames(seq))
                 state.frame_reconstructed(decoded_first_frame, seq)
@@ -117,7 +122,16 @@ class StreamProducer:
                 if play_video:
                     decoded_first_frame.display()
                     decoded_second_frame.display()
+                psnr_sum += original_frames[seq].PSNR(decoded_first_frame)
+                psnr_sum += original_frames[seq + 1].PSNR(decoded_second_frame)
                 seq += 2
         else:
             raise Exception("Unknown ParallelMode")
-        return data_stream
+        return CompressedVideoData(
+                config=self.config, 
+                stream=data_stream, 
+                metrics=StreamMetrics(
+                    psnr=psnr_sum / len(data_stream), 
+                    bitrate=encoder.bitrate
+                )
+            )
