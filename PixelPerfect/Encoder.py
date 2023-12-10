@@ -396,5 +396,9 @@ class VideoEncoder(VideoCoder):
             raise ValueError("RCflag must be set to 4 for rate control mode 4.")
          else:
              return qp
+         
+    def encode(self, frame):
+        if self.config.RCflag == 4:
+            self.bitrate_controller.adjust_qp_for_roi(frame)
              
     

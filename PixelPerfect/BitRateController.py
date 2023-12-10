@@ -1,6 +1,7 @@
 from PixelPerfect.CodecConfig import CodecConfig
 from PixelPerfect.Yuv import YuvFrame
 import bisect
+import face_recognition
 
 class BitRateController:
     def __init__(self, height: int, width: int, config: CodecConfig) -> None:        
@@ -101,6 +102,7 @@ class BitRateController:
             raise Exception("Error! RCflag not supported by BitRateController")
         
     def apply_delta_qp(self, frame, rcflag, config):
+        max_qp_limit = config.max_qp
         if rcflag == 4:
             for row in frame.rows:
                 row_qp = self.calculate_row_qp(row)  # Assuming a method exists for this
@@ -114,9 +116,17 @@ class BitRateController:
                     block_qp = min(row_qp + config.dQPLimit, max_qp_limit)  # Increase QP for non-ROI blocks
                     frame.set_qp_for_block(block, block_qp)
     
-    def identify_roi_blocks(self, row, config):
-        # Implement logic to identify ROI blocks, possibly using external libraries
-        roi_blocks = []
-        non_roi_blocks = []
-        # Logic to populate roi_blocks and non_roi_blocks
-        return roi_blocks, non_roi_blocks
+    def identify_roi(frame):
+        face_locations = face_recognition.face_locations(frame)
+        return face_locations  
+    
+    def adjust_qp_for_roi(self, frame):
+        frame_height = frame.height 
+        frame_width = frame.width
+        roi_locations = self.identify_roi(frame)
+        for row in range(frame_height):
+            for block in range(frame_width):
+                if self.is_block_in_roi(block, roi_locations):
+                    delta_qp = -self.config.dQPLimit  # Decrease QP for ROI
+                else:
+                    delta_qp = self.config.dQPLimit   # Increase QP for non-ROI
