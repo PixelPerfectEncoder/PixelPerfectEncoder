@@ -75,11 +75,10 @@ class BitRateController:
     def set_row_ratio(self, per_row_bit):
         self.per_row_ratio = per_row_bit
     def _get_budget_per_block_row(self) -> int:
-        if self.config.RCflag == 1:
-            return int(self.left_budget // (self.block_rows_per_frame - self.coded_rows) )
-        if self.config.RCflag >1:
+        if 1<self.config.RCflag <4:
             return int(self.left_budget * self.per_row_ratio[self.coded_rows] / sum(self.per_row_ratio[self.coded_rows:]))
-    
+        else:
+            return int(self.left_budget // (self.block_rows_per_frame - self.coded_rows))
     def _find_closest_qp(self, budget: int, is_i_frame: int) -> int:
         bit_count = self.i_frame_bit_count_sorted if is_i_frame else self.p_frame_bit_count_sorted
         index = bisect.bisect_left(bit_count, (budget, 0))

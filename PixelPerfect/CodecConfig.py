@@ -24,6 +24,9 @@ class CodecConfig:
         total_frames: int = 0,
         filename = '',
         is_firstpass = False,
+        facial_recognition = False,
+        dQPLimit = 0,
+
     ) -> None:
         self.block_size = block_size
         self.sub_block_size = block_size // 2
@@ -49,3 +52,5 @@ class CodecConfig:
         self.total_frames = total_frames
         self.filename = filename
         self.is_firstpass = is_firstpass
+        self.facial_recognition = facial_recognition
+        self.dQPLimit = dQPLimit

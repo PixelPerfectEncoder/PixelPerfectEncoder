@@ -230,6 +230,14 @@ class VideoEncoder(VideoCoder):
                 self.mv_list.pop(0)
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=False)
+                if self.config.facial_recognition == True:
+                    if len(self.faces) > 0:
+                        for (x, y, w, h) in self.faces:
+                            if y < block_seq // self.blocks_per_row * self.config.block_size < y + h :
+                                qp = max(0,qp - self.config.dQPLimit)
+                            else:
+                                qp = min(11,qp + self.config.dQPLimit)
+
                 self.bitrate_controller.update_used_rows()
                 self.qp_list.append(qp)
             (
@@ -305,6 +313,13 @@ class VideoEncoder(VideoCoder):
         for block_seq, block in enumerate(frame.get_blocks()):
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=True)
+                if self.config.RCflag == 4:
+                    if len(self.faces) > 0:
+                        for (x, y, w, h) in self.faces:
+                            if y < block_seq // self.blocks_per_row * self.config.block_size < y + h :
+                                qp = max(0,qp - self.config.dQPLimit)
+                            else:
+                                qp = min(10,qp + self.config.dQPLimit)
                 self.qp_list.append(qp)
                 self.bitrate_controller.update_used_rows()
             (
@@ -364,7 +379,7 @@ class VideoEncoder(VideoCoder):
 
     def process(self, frame: ReferenceFrame):
         'if the rc == 2, we need to pre-execute the encoding first and the determine if is i_frame or p_frame'
-        if self.config.RCflag > 1:
+        if 1<self.config.RCflag < 4:
             if self.frame_seq:
                 self.firstpass_encoder.config.qp = sum(self.qp_list) // len(self.qp_list)
             self.firstpass_encoder.frame_seq = self.frame_seq
@@ -381,6 +396,8 @@ class VideoEncoder(VideoCoder):
             if self.config.RCflag == 3:
                 self.vbs_token = self.firstpass_encoder.vbs_token
                 self.mv_list = self.firstpass_encoder.mv_list
+        if self.config.RCflag == 4:
+           self.faces = frame.get_face()
         if self.is_i_frame():
             return self.process_i_frame(frame)
         else:

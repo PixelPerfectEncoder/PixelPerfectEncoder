@@ -2,7 +2,8 @@ import numpy as np
 import cv2
 from math import log10, sqrt, isclose
 from PixelPerfect.CodecConfig import CodecConfig
-
+import cv2
+import numpy as np
 class YuvBlock:
     def __init__(self, data: np.ndarray, block_size: int, row: int, col: int) -> None:
         self.data: np.ndarray = data
@@ -76,6 +77,17 @@ class YuvFrame:
 
     def get_psnr(self, reference_frame):
         return cv2.PSNR(self.data, reference_frame.data)
+
+    def get_face(self):
+        y_values = np.array(self.data, dtype=np.uint8)
+
+        # Load the pre-trained Haarcascades face classifier
+        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+        # Detect faces in the image
+        faces = face_cascade.detectMultiScale(y_values, scaleFactor=1.3, minNeighbors=5)
+
+        return faces
 
     def PSNR(self, compressed):
         img1 = self.data.astype(np.float64)
