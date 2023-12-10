@@ -111,7 +111,7 @@ def mode3_concept_verification():
     print("=====================================")
     print(third_frame)
 
-def plot_a_RD_to_bitrate_curve(video_name, config: CodecConfig, label: str, show_time=False, total_frames=-1):
+def plot_a_RD_to_bitrate_curve(video_name, config: CodecConfig, label: str, show_time=False, total_frames=5):
     qps = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     R_D = []
     total_time = 0
@@ -120,7 +120,7 @@ def plot_a_RD_to_bitrate_curve(video_name, config: CodecConfig, label: str, show
         producer = StreamProducer(videos[video_name], config)
         start_time = time.time()
         video_data = producer.get_stream(play_video=True, total_frames=total_frames)
-        R_D.append((video_data.metrics.bitrate, video_data.metrics.psnr))
+        R_D.append((video_data.bitrate, video_data.psnr))
         print(f"label={label}, qp={qp} done")
     total_time = time.time() - start_time
     x = [R_D[i][0] for i in range(len(qps))]
@@ -158,7 +158,7 @@ def e3_compare_mode0_mode1():
         FastME=True,
         FastME_LIMIT=16,
         FMEEnable=True,
-        VBSEnable=True,
+        VBSEnable=False,
         RD_lambda=0.3,
         nRefFrames=1,
         i_Period=10,

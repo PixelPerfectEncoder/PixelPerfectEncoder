@@ -7,28 +7,6 @@ from math import log2, floor
 
 class Coder:
     def __init__(self, height, width, config: CodecConfig) -> None:
-        if config.RCflag == 1:
-            if config.targetBR == 0:
-                raise Exception(
-                    "Error! targetBR must be set when RCflag is enabled"
-                )
-            if config.total_frames == 0:
-                raise Exception(
-                    "Error! total_frames must be set when RCflag is enabled"
-                )
-            try:
-                ok = None
-                if config.i_Period != 0:
-                    ok = config.RCTable['I']
-                    assert len(ok) == 12
-                if config.i_Period != -1:
-                    ok = config.RCTable['P']
-                    assert len(ok) == 12
-            except:
-                raise Exception(
-                    "Error! RCTable must be set when RCflag is enabled"
-                )
-                
         if config.FastME and config.FastME_LIMIT == -1:
             raise Exception(
                 "Error! FastME_LIMIT must be set when FastME is enabled"
@@ -43,7 +21,12 @@ class Coder:
             raise Exception(
                 "Error! num_processes must be 2 when ParallelMode is 3"
             )
-            
+        
+        if config.i_Period <= 0:
+            raise Exception(
+                "Error! i_Period must be positive"
+            )
+        
         config.need_display = config.DisplayBlocks or config.DisplayMvAndMode or config.DisplayRefFrames
             
         self.config = config

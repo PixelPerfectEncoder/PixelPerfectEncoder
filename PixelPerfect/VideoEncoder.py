@@ -13,7 +13,6 @@ from typing import List
 class VideoEncoder(Coder):
     def __init__(self, height, width, config: CodecConfig):
         super().__init__(height, width, config)
-        self.bitrate = 0
         self.video_decoder = VideoDecoder(height, width, config)
         
     def calculate_RDO(self, bitrate, distortion):
@@ -151,8 +150,7 @@ class VideoEncoder(Coder):
 
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         frame_bitrate += descriptors_bitrate
-        self.bitrate += frame_bitrate
-        compressed_data = CompressedFrameData(compressed_residual, compressed_descriptors)
+        compressed_data = CompressedFrameData(compressed_residual, compressed_descriptors, frame_bitrate)
         return compressed_data
 
     def iframe_compare_sub_block_and_normal_block_get_result(self, args):
@@ -232,8 +230,7 @@ class VideoEncoder(Coder):
             raise Exception("Unknown ParallelMode")
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         frame_bitrate += descriptors_bitrate
-        self.bitrate += frame_bitrate
-        compressed_data = CompressedFrameData(compressed_residual, compressed_descriptors)
+        compressed_data = CompressedFrameData(compressed_residual, compressed_descriptors, frame_bitrate)
         return compressed_data
 
     def mode_3_process(self, args):
