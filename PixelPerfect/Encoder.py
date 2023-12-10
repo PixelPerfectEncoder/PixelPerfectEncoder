@@ -14,6 +14,7 @@ class InterFrameEncoder(Coder):
     def is_better_match_block(
         self, block: YuvBlock, ref_block: YuvBlock, min_mae, best_i, best_j
     ) -> bool:
+        # Mean Absolute Error
         mae = block.get_mae(ref_block)
         if mae > min_mae:
             return False, None
@@ -38,6 +39,7 @@ class InterFrameEncoder(Coder):
 
     def get_inter_data_fast_search(self, block: YuvBlock, mv_row_pred, mv_col_pred):
         best_block_among_all_frames = None
+        # float("inf")= infinity
         best_mae_among_all_frames = float("inf")
         best_ref_frame_seq = None
         for ref_frame_seq, ref_frame in enumerate(self.previous_frames):
@@ -142,6 +144,9 @@ class InterFrameEncoder(Coder):
             last_row_mv,
             last_col_mv,
         )
+    def encode_frame(self, frame, rcflag, config):
+        if rcflag == 4:
+            self.bit_rate_controller.apply_delta_qp(frame, rcflag, config)
 
 
 class IntraFrameEncoder(Coder):
@@ -385,3 +390,11 @@ class VideoEncoder(VideoCoder):
             return self.process_i_frame(frame)
         else:
             return self.process_p_frame(frame)
+
+    def rate_control_mode_4(frame, RCflag, qp):
+         if RCflag != 4:
+            raise ValueError("RCflag must be set to 4 for rate control mode 4.")
+         else:
+             return qp
+             
+    
