@@ -99,5 +99,24 @@ class BitRateController:
             return self._find_closest_qp(self._get_budget_per_block_row(), is_i_frame)
         else:
             raise Exception("Error! RCflag not supported by BitRateController")
+        
+    def apply_delta_qp(self, frame, rcflag, config):
+        if rcflag == 4:
+            for row in frame.rows:
+                row_qp = self.calculate_row_qp(row)  # Assuming a method exists for this
+                roi_blocks, non_roi_blocks = self.identify_roi_blocks(row, config)
+                
+                for block in roi_blocks:
+                    block_qp = max(row_qp - config.dQPLimit, 0)  # Decrease QP for ROI blocks
+                    frame.set_qp_for_block(block, block_qp)
+
+                for block in non_roi_blocks:
+                    block_qp = min(row_qp + config.dQPLimit, max_qp_limit)  # Increase QP for non-ROI blocks
+                    frame.set_qp_for_block(block, block_qp)
     
-    
+    def identify_roi_blocks(self, row, config):
+        # Implement logic to identify ROI blocks, possibly using external libraries
+        roi_blocks = []
+        non_roi_blocks = []
+        # Logic to populate roi_blocks and non_roi_blocks
+        return roi_blocks, non_roi_blocks
