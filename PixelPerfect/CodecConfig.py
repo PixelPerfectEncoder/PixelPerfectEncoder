@@ -49,3 +49,4 @@ class CodecConfig:
         self.total_frames = total_frames
         self.filename = filename
         self.is_firstpass = is_firstpass
+        self.dQPLimit = dQPLimit  # Maximum allowed delta QP
