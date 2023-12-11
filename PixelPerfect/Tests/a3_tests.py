@@ -403,7 +403,7 @@ def facial_test():
         fps=30,
         total_frames=21,
         filename='CIF',
-        dQPLimit = 1,
+        dQPLimit = 3,
         i_Period=21
         # facial_recognition=True,
     )
@@ -412,7 +412,7 @@ def facial_test():
     plt.figure()
     bitcount_list = []
     PSNR_list = []
-    for BR in [0.96,2.1,7]:
+    for BR in [7]:
         config.targetBR = BR*1024
         threshold = dict()
         for qp in [6]:

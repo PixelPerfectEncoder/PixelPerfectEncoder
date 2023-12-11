@@ -73,7 +73,7 @@ class VideoDecoder(VideoCoder):
         super().__init__(height, width, config)
 
     def process_p_frame(self, compressed_data):
-        compressed_residual, compressed_descriptors, qp_list = compressed_data[:3]
+        compressed_residual, compressed_descriptors, qp_list, frame_s, dqp_list = compressed_data[:5]
         descriptors = self.decompress_descriptors(compressed_descriptors)
         inter_decoder = InterFrameDecoder(self.height, self.width, self.previous_frames, self.config)
         block_seq = 0
@@ -86,6 +86,10 @@ class VideoDecoder(VideoCoder):
             if self.config.RCflag > 0:
                 if block_seq % self.blocks_per_row == 0:
                     qp = qp_list[block_seq // self.blocks_per_row]
+                    ref = qp
+            if self.config.RCflag == 4:
+                if len(dqp_list) > 0:
+                    qp = ref + dqp_list.pop(0)
             if not self.config.VBSEnable:
                 if self.config.FMEEnable:
                     row_mv, col_mv = descriptors[seq * 3] / 2 + last_row_mv, descriptors[seq * 3 + 1] / 2 + last_col_mv
@@ -129,7 +133,7 @@ class VideoDecoder(VideoCoder):
         return frame
 
     def process_i_frame(self, compressed_data):
-        compressed_residual, compressed_descriptors, qp_list = compressed_data[:3]
+        compressed_residual, compressed_descriptors, qp_list, frame_s, dqp_list = compressed_data[:5]
         descriptors = self.decompress_descriptors(compressed_descriptors)
         intra_decoder = IntraFrameDecoder(self.height, self.width, self.config)
         block_seq = 0
@@ -140,6 +144,10 @@ class VideoDecoder(VideoCoder):
             if self.config.RCflag > 0:
                 if block_seq % self.blocks_per_row == 0:
                     qp = qp_list[block_seq//self.blocks_per_row]
+                    ref = qp
+            if self.config.RCflag == 4:
+                if len(dqp_list) > 0:
+                    qp = ref + dqp_list.pop(0)
             if not self.config.VBSEnable:
                 intra_decoder.process(block_seq, 0, residual, descriptors[seq], False, qp)
                 block_seq += 1

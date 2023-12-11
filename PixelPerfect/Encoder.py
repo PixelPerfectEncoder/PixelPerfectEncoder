@@ -211,6 +211,7 @@ class VideoEncoder(VideoCoder):
         compressed_residual = []
         descriptors = []
         self.qp_list = []
+        self.dqp_list = []
         last_row_mv, last_col_mv = 0, 0
         frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frames, self.config)
         frame_bitrate = 0
@@ -230,16 +231,19 @@ class VideoEncoder(VideoCoder):
                 self.mv_list.pop(0)
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=False)
-                if self.config.facial_recognition == True:
-                    if len(self.faces) > 0:
-                        for (x, y, w, h) in self.faces:
-                            if y < block_seq // self.blocks_per_row * self.config.block_size < y + h :
-                                qp = max(0,qp - self.config.dQPLimit)
-                            else:
-                                qp = min(11,qp + self.config.dQPLimit)
+                temp = qp
+                self.qp_list.append(qp)
+            if self.config.RCflag == 4:
+                if len(self.faces) > 0:
+                    for (x, y, w, h) in self.faces:
+                        if y < block_seq // self.blocks_per_row * self.config.block_size < y + h and x < block_seq % self.blocks_per_row * self.config.block_size < x + w:
+                            qp = max(0, temp - self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
+                        else:
+                            qp = min(10, temp + self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
 
                 self.bitrate_controller.update_used_rows()
-                self.qp_list.append(qp)
             (
                 normal_residual,
                 normal_descriptors,
@@ -294,7 +298,7 @@ class VideoEncoder(VideoCoder):
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         self.bitrate += frame_bitrate
         self.frame_bitrate = frame_bitrate
-        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq)
+        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq, self.dqp_list)
         decoded_frame = frame_encoder.inter_decoder.frame.to_reference_frame()
         self.frame_processed(decoded_frame)
         return compressed_data
@@ -304,6 +308,7 @@ class VideoEncoder(VideoCoder):
         descriptors = []
         frame_bitrate = 0
         self.qp_list = []
+        self.dqp_list = []
         frame_encoder = IntraFrameEncoder(self.height, self.width, self.config, frame.data)
         self.bitrate_controller.refresh_frame()
         self.per_row_bit = []
@@ -313,15 +318,19 @@ class VideoEncoder(VideoCoder):
         for block_seq, block in enumerate(frame.get_blocks()):
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=True)
-                if self.config.RCflag == 4:
-                    if len(self.faces) > 0:
-                        for (x, y, w, h) in self.faces:
-                            if y < block_seq // self.blocks_per_row * self.config.block_size < y + h :
-                                qp = max(0,qp - self.config.dQPLimit)
-                            else:
-                                qp = min(10,qp + self.config.dQPLimit)
+                temp = qp
                 self.qp_list.append(qp)
+
                 self.bitrate_controller.update_used_rows()
+            if self.config.RCflag == 4:
+                if len(self.faces) > 0:
+                    for (x, y, w, h) in self.faces:
+                        if y < block_seq // self.blocks_per_row * self.config.block_size < y + h and x < block_seq % self.blocks_per_row * self.config.block_size < x + w:
+                            qp = max(0, temp - self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
+                        else:
+                            qp = min(10, temp + self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
             (
                 normal_residual,
                 normal_descriptors,
@@ -372,7 +381,7 @@ class VideoEncoder(VideoCoder):
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         self.bitrate += frame_bitrate
         self.frame_bitrate = frame_bitrate
-        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq)
+        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq, self.dqp_list)
         decoded_frame = frame_encoder.intra_decoder.frame.to_reference_frame()
         self.frame_processed(decoded_frame)
         return compressed_data
