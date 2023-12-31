@@ -14,7 +14,6 @@ class InterFrameEncoder(Coder):
     def is_better_match_block(
         self, block: YuvBlock, ref_block: YuvBlock, min_mae, best_i, best_j
     ) -> bool:
-        # Mean Absolute Error
         mae = block.get_mae(ref_block)
         if mae > min_mae:
             return False, None
@@ -39,7 +38,6 @@ class InterFrameEncoder(Coder):
 
     def get_inter_data_fast_search(self, block: YuvBlock, mv_row_pred, mv_col_pred):
         best_block_among_all_frames = None
-        # float("inf")= infinity
         best_mae_among_all_frames = float("inf")
         best_ref_frame_seq = None
         for ref_frame_seq, ref_frame in enumerate(self.previous_frames):
@@ -144,9 +142,6 @@ class InterFrameEncoder(Coder):
             last_row_mv,
             last_col_mv,
         )
-    def encode_frame(self, frame, rcflag, config):
-        if rcflag == 4:
-            self.bit_rate_controller.apply_delta_qp(frame, rcflag, config)
 
 
 class IntraFrameEncoder(Coder):
@@ -216,6 +211,7 @@ class VideoEncoder(VideoCoder):
         compressed_residual = []
         descriptors = []
         self.qp_list = []
+        self.dqp_list = []
         last_row_mv, last_col_mv = 0, 0
         frame_encoder = InterFrameEncoder(self.height, self.width, self.previous_frames, self.config)
         frame_bitrate = 0
@@ -235,8 +231,19 @@ class VideoEncoder(VideoCoder):
                 self.mv_list.pop(0)
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=False)
-                self.bitrate_controller.update_used_rows()
+                temp = qp
                 self.qp_list.append(qp)
+            if self.config.RCflag == 4:
+                if len(self.faces) > 0:
+                    for (x, y, w, h) in self.faces:
+                        if y < block_seq // self.blocks_per_row * self.config.block_size < y + h and x < block_seq % self.blocks_per_row * self.config.block_size < x + w:
+                            qp = max(0, temp - self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
+                        else:
+                            qp = min(10, temp + self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
+
+                self.bitrate_controller.update_used_rows()
             (
                 normal_residual,
                 normal_descriptors,
@@ -291,7 +298,7 @@ class VideoEncoder(VideoCoder):
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         self.bitrate += frame_bitrate
         self.frame_bitrate = frame_bitrate
-        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq)
+        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq, self.dqp_list)
         decoded_frame = frame_encoder.inter_decoder.frame.to_reference_frame()
         self.frame_processed(decoded_frame)
         return compressed_data
@@ -301,6 +308,7 @@ class VideoEncoder(VideoCoder):
         descriptors = []
         frame_bitrate = 0
         self.qp_list = []
+        self.dqp_list = []
         frame_encoder = IntraFrameEncoder(self.height, self.width, self.config, frame.data)
         self.bitrate_controller.refresh_frame()
         self.per_row_bit = []
@@ -310,8 +318,19 @@ class VideoEncoder(VideoCoder):
         for block_seq, block in enumerate(frame.get_blocks()):
             if block_seq % self.blocks_per_row == 0:
                 qp = self.bitrate_controller.get_qp(is_i_frame=True)
+                temp = qp
                 self.qp_list.append(qp)
+
                 self.bitrate_controller.update_used_rows()
+            if self.config.RCflag == 4:
+                if len(self.faces) > 0:
+                    for (x, y, w, h) in self.faces:
+                        if y < block_seq // self.blocks_per_row * self.config.block_size < y + h and x < block_seq % self.blocks_per_row * self.config.block_size < x + w:
+                            qp = max(0, temp - self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
+                        else:
+                            qp = min(10, temp + self.config.dQPLimit)
+                            self.dqp_list.append(qp - temp)
             (
                 normal_residual,
                 normal_descriptors,
@@ -362,14 +381,14 @@ class VideoEncoder(VideoCoder):
         compressed_descriptors, descriptors_bitrate = self.compress_descriptors(descriptors)
         self.bitrate += frame_bitrate
         self.frame_bitrate = frame_bitrate
-        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq)
+        compressed_data = (compressed_residual, compressed_descriptors, self.qp_list, self.frame_seq, self.dqp_list)
         decoded_frame = frame_encoder.intra_decoder.frame.to_reference_frame()
         self.frame_processed(decoded_frame)
         return compressed_data
 
     def process(self, frame: ReferenceFrame):
         'if the rc == 2, we need to pre-execute the encoding first and the determine if is i_frame or p_frame'
-        if self.config.RCflag > 1:
+        if 1<self.config.RCflag < 4:
             if self.frame_seq:
                 self.firstpass_encoder.config.qp = sum(self.qp_list) // len(self.qp_list)
             self.firstpass_encoder.frame_seq = self.frame_seq
@@ -386,19 +405,9 @@ class VideoEncoder(VideoCoder):
             if self.config.RCflag == 3:
                 self.vbs_token = self.firstpass_encoder.vbs_token
                 self.mv_list = self.firstpass_encoder.mv_list
+        if self.config.RCflag == 4:
+           self.faces = frame.get_face()
         if self.is_i_frame():
             return self.process_i_frame(frame)
         else:
             return self.process_p_frame(frame)
-
-    def rate_control_mode_4(frame, RCflag, qp):
-         if RCflag != 4:
-            raise ValueError("RCflag must be set to 4 for rate control mode 4.")
-         else:
-             return qp
-         
-    def encode(self, frame):
-        if self.config.RCflag == 4:
-            self.bitrate_controller.adjust_qp_for_roi(frame)
-             
-    
