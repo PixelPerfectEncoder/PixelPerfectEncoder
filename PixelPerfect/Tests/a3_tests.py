@@ -117,56 +117,6 @@ def get_iframe_threshold():
         print(threshold)
 
 
-
-
-def facial_test():
-    config = CodecConfig(
-        block_size=16,
-        nRefFrames=1,
-        VBSEnable=False,
-        FMEEnable=True,
-        FastME=1,
-        FastME_LIMIT=16,
-        RCflag=4,
-        RCTable=read_json("e1_table_vbs_false.json")["CIF"],
-        targetBR=7 * 1024,
-        fps=30,
-        total_frames=21,
-        filename='CIF',
-        dQPLimit = 1,
-        i_Period=21
-        # facial_recognition=True,
-    )
-    filename, height, width = videos["CIF"]
-    frame_type_data = dict()
-    plt.figure()
-    bitcount_list = []
-    PSNR_list = []
-    for BR in [0.96,2.1,7]:
-        config.targetBR = BR*1024
-        threshold = dict()
-        for qp in [6]:
-            config.qp = qp
-            encoder = VideoEncoder(height, width, config)
-            decoder = VideoDecoder(height, width, config)
-            total_frames = 0
-            PSNR = 0
-            bitcount = 0
-            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
-                compressed_data = encoder.process(frame)
-                decoded_frame = decoder.process(compressed_data)
-                decoded_frame.display()
-                PSNR += frame.get_psnr(decoded_frame)
-                bitcount+=encoder.frame_bitrate
-        PSNR_list.append(PSNR/21)
-        bitcount_list.append(bitcount/21)
-        print(bitcount_list[-1] / (BR * 1024 * 1024 // 30))
-    x = [bitcount_list[i] for i in range(len(bitcount_list))]
-    y = [PSNR_list[i] for i in range(len(PSNR_list))]
-    plt.xlabel("bitcounts")
-    plt.ylabel("PSNR")
-    plt.plot(x, y,  linewidth=0.5)
-
 def create_e1_table():
     """
     Configure your encoder to operate with (nRefFrames=1, VBSEnable=1, FMEEnable=1, and FastME=1),
@@ -438,6 +388,55 @@ def a3_e2_test_part2():
         plt.legend(loc='best')
     plt.show()
     plt.savefig("PSNR_perframe_QCIF.png")
+
+def facial_test():
+    config = CodecConfig(
+        block_size=16,
+        nRefFrames=1,
+        VBSEnable=False,
+        FMEEnable=True,
+        FastME=1,
+        FastME_LIMIT=16,
+        RCflag=4,
+        RCTable=read_json("e1_table_vbs_false.json")["CIF"],
+        targetBR=7 * 1024,
+        fps=30,
+        total_frames=21,
+        filename='CIF',
+        dQPLimit = 3,
+        i_Period=21
+        # facial_recognition=True,
+    )
+    filename, height, width = videos["CIF"]
+    frame_type_data = dict()
+    plt.figure()
+    bitcount_list = []
+    PSNR_list = []
+    for BR in [7]:
+        config.targetBR = BR*1024
+        threshold = dict()
+        for qp in [6]:
+            config.qp = qp
+            encoder = VideoEncoder(height, width, config)
+            decoder = VideoDecoder(height, width, config)
+            total_frames = 0
+            PSNR = 0
+            bitcount = 0
+            for seq, frame in enumerate(read_frames(get_media_file_path(filename), height, width, config)):
+                compressed_data = encoder.process(frame)
+                decoded_frame = decoder.process(compressed_data)
+                decoded_frame.display()
+                PSNR += frame.get_psnr(decoded_frame)
+                bitcount+=encoder.frame_bitrate
+        PSNR_list.append(PSNR/21)
+        bitcount_list.append(bitcount/21)
+        print(bitcount_list[-1] / (BR * 1024 * 1024 // 30))
+    x = [bitcount_list[i] for i in range(len(bitcount_list))]
+    y = [PSNR_list[i] for i in range(len(PSNR_list))]
+    plt.xlabel("bitcounts")
+    plt.ylabel("PSNR")
+    plt.plot(x, y,  linewidth=0.5)
+    plt.savefig("R_D_ROI.png")
 def run_e1():
     # create_e1_table()
     # config = CodecConfig(
@@ -455,6 +454,6 @@ def run_e1():
     # plt.legend()
     # plt.show()
     
-    a3_e2_test_part2()
+    facial_test()
     # get_iframe_threshold()
             
